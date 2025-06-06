@@ -1,8 +1,3 @@
-# app/main.py
-"""
-OMOP Quality Dashboard - Main Streamlit Application
-"""
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
