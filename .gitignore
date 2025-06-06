@@ -50,3 +50,45 @@ Thumbs.db
 
 # Streamlit
 .streamlit/
+🚀 Quick Setup Commands
+bash# Create project directory
+mkdir omop_quality_dashboard
+cd omop_quality_dashboard
+
+# Create all directories
+mkdir -p app/database app/quality_checks app/visualizations app/utils
+mkdir -p tests data docs logs sql
+
+# Create __init__.py files
+touch app/__init__.py
+touch app/database/__init__.py
+touch app/quality_checks/__init__.py
+touch app/visualizations/__init__.py
+touch app/utils/__init__.py
+touch tests/__init__.py
+
+# Create configuration files
+touch config.yaml
+touch requirements.txt
+touch .env.example
+touch .gitignore
+touch README.md
+
+# Create Python files
+touch app/main.py
+touch run_dashboard.py
+touch setup.py
+
+# Create a virtual environment
+python -m venv omop_dashboard_env
+source omop_dashboard_env/bin/activate  # On Windows: omop_dashboard_env\Scripts\activate
+
+# Install dependencies (after creating requirements.txt)
+pip install -r requirements.txt
+
+# Copy environment template
+cp .env.example .env
+# Edit .env with your database credentials
+
+# Run the dashboard
+python run_dashboard.py
