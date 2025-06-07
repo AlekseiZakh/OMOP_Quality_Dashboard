@@ -8,6 +8,7 @@ import json
 import re
 from pathlib import Path
 import hashlib
+import base64
 
 
 class DataHelpers:
@@ -568,7 +569,7 @@ class OMOPHelpers:
     @staticmethod
     def validate_omop_cdm_version(version: str) -> bool:
         """Validate OMOP CDM version format"""
-        pattern = r'^v?\d+\.\d+(\.\d+)?
+        pattern = r'^v?\d+\.\d+(\.\d+)?$'
         return bool(re.match(pattern, version.lower()))
     
     @staticmethod
@@ -642,23 +643,28 @@ class PerformanceHelpers:
     def monitor_memory_usage(func):
         """Decorator to monitor memory usage"""
         def wrapper(*args, **kwargs):
-            import psutil
-            import os
-            
-            process = psutil.Process(os.getpid())
-            memory_before = process.memory_info().rss / 1024 / 1024  # MB
-            
-            result = func(*args, **kwargs)
-            
-            memory_after = process.memory_info().rss / 1024 / 1024  # MB
-            memory_diff = memory_after - memory_before
-            
-            logging.info(f"Function {func.__name__} memory usage: {memory_diff:.2f} MB")
-            
-            if memory_diff > 100:  # More than 100MB
-                logging.warning(f"High memory usage detected in {func.__name__}: {memory_diff:.2f} MB")
-            
-            return result
+            try:
+                import psutil
+                import os
+                
+                process = psutil.Process(os.getpid())
+                memory_before = process.memory_info().rss / 1024 / 1024  # MB
+                
+                result = func(*args, **kwargs)
+                
+                memory_after = process.memory_info().rss / 1024 / 1024  # MB
+                memory_diff = memory_after - memory_before
+                
+                logging.info(f"Function {func.__name__} memory usage: {memory_diff:.2f} MB")
+                
+                if memory_diff > 100:  # More than 100MB
+                    logging.warning(f"High memory usage detected in {func.__name__}: {memory_diff:.2f} MB")
+                
+                return result
+            except ImportError:
+                # psutil not available, just run function normally
+                logging.warning("psutil not available for memory monitoring")
+                return func(*args, **kwargs)
         return wrapper
 
 
@@ -687,9 +693,6 @@ def truncate_string(text: str, max_length: int = 100, suffix: str = "...") -> st
         return text
     return text[:max_length - len(suffix)] + suffix
 
-
-# Import base64 for download functionality
-import base64
 
 # Export all helper classes and functions
 __all__ = [
