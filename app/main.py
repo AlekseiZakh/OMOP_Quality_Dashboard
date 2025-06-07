@@ -720,7 +720,6 @@ FROM person;
                 logger.error(f"Query execution error: {e}")
 
 else:
-
     # Header with GitHub link
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -734,6 +733,7 @@ else:
     st.markdown("""
     <div class="welcome-container">
         <div class="quality-summary">
+        <h2>Welcome! 🎉</h2>
         <p>This comprehensive dashboard helps you monitor and analyze the quality of your OMOP Common Data Model implementation.</p>
         <h3>🚀 Getting Started:</h3>
         <ol>
