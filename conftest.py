@@ -596,4 +596,384 @@ def sample_config():
 def mock_config_manager():
     """Mock configuration manager"""
     config_manager = Mock()
-    config_manager.get.side_effect = lambda key, default=None
+    config_manager.get.side_effect = lambda key, default=None: {
+        'database.default_type': 'postgresql',
+        'database.pool_size': 5,
+        'dashboard.title': 'OMOP Quality Dashboard',
+        'dashboard.refresh_interval': 300,
+        'quality_checks.completeness.table_completeness_warning': 10,
+        'quality_checks.completeness.table_completeness_fail': 25,
+        'quality_checks.temporal.max_age': 120,
+        'quality_checks.temporal.future_date_tolerance': 0,
+        'dashboard.chart_colors.pass': '#28a745',
+        'dashboard.chart_colors.warning': '#ffc107',
+        'dashboard.chart_colors.fail': '#dc3545'
+    }.get(key, default)
+    
+    config_manager.get_chart_colors.return_value = {
+        'pass': '#28a745',
+        'warning': '#ffc107',
+        'fail': '#dc3545',
+        'error': '#6c757d'
+    }
+    
+    return config_manager
+
+
+# =============================================================================
+# ENVIRONMENT AND UTILITY FIXTURES
+# =============================================================================
+
+@pytest.fixture
+def temp_directory():
+    """Create a temporary directory for testing"""
+    temp_dir = tempfile.mkdtemp()
+    yield temp_dir
+    
+    # Cleanup
+    import shutil
+    try:
+        shutil.rmtree(temp_dir)
+    except OSError:
+        pass
+
+
+@pytest.fixture
+def mock_logger():
+    """Mock logger for testing"""
+    logger = Mock()
+    logger.info = Mock()
+    logger.warning = Mock()
+    logger.error = Mock()
+    logger.debug = Mock()
+    logger.critical = Mock()
+    return logger
+
+
+@pytest.fixture
+def suppress_logging():
+    """Suppress logging during tests"""
+    logging.disable(logging.CRITICAL)
+    yield
+    logging.disable(logging.NOTSET)
+
+
+@pytest.fixture(autouse=True)
+def setup_test_environment():
+    """Automatically setup test environment for all tests"""
+    # Set test environment variables
+    original_env = os.environ.copy()
+    os.environ['ENVIRONMENT'] = 'test'
+    os.environ['LOG_LEVEL'] = 'ERROR'  # Reduce log noise during tests
+    os.environ['DASHBOARD_DEBUG'] = 'false'
+    
+    yield
+    
+    # Restore original environment
+    os.environ.clear()
+    os.environ.update(original_env)
+
+
+# =============================================================================
+# PERFORMANCE AND BENCHMARKING FIXTURES
+# =============================================================================
+
+@pytest.fixture
+def benchmark_timer():
+    """Simple benchmark timer for performance testing"""
+    import time
+    
+    class BenchmarkTimer:
+        def __init__(self):
+            self.start_time = None
+            self.end_time = None
+        
+        def start(self):
+            self.start_time = time.time()
+        
+        def stop(self):
+            self.end_time = time.time()
+            return self.end_time - self.start_time
+        
+        @property
+        def elapsed(self):
+            if self.start_time and self.end_time:
+                return self.end_time - self.start_time
+            return None
+    
+    return BenchmarkTimer()
+
+
+@pytest.fixture
+def memory_profiler():
+    """Memory profiling fixture for testing memory usage"""
+    import tracemalloc
+    
+    class MemoryProfiler:
+        def __init__(self):
+            self.start_snapshot = None
+            self.end_snapshot = None
+        
+        def start(self):
+            tracemalloc.start()
+            self.start_snapshot = tracemalloc.take_snapshot()
+        
+        def stop(self):
+            self.end_snapshot = tracemalloc.take_snapshot()
+            tracemalloc.stop()
+            
+            if self.start_snapshot:
+                top_stats = self.end_snapshot.compare_to(self.start_snapshot, 'lineno')
+                return top_stats[:10]  # Top 10 memory allocations
+            return []
+    
+    return MemoryProfiler()
+
+
+# =============================================================================
+# PYTEST CONFIGURATION AND MARKERS
+# =============================================================================
+
+# Test markers for different test categories
+pytest.mark.unit = pytest.mark.unit
+pytest.mark.integration = pytest.mark.integration
+pytest.mark.slow = pytest.mark.slow
+pytest.mark.database = pytest.mark.database
+pytest.mark.ui = pytest.mark.ui
+pytest.mark.performance = pytest.mark.performance
+pytest.mark.security = pytest.mark.security
+
+
+def pytest_configure(config):
+    """Configure pytest with custom settings"""
+    # Register custom markers
+    markers = [
+        "unit: mark test as a unit test",
+        "integration: mark test as an integration test", 
+        "slow: mark test as slow running",
+        "database: mark test as requiring database",
+        "ui: mark test as testing UI components",
+        "performance: mark test as performance/benchmark test",
+        "security: mark test as security-related test",
+        "smoke: mark test as smoke test for basic functionality",
+        "regression: mark test as regression test",
+        "api: mark test as API test",
+        "e2e: mark test as end-to-end test"
+    ]
+    
+    for marker in markers:
+        config.addinivalue_line("markers", marker)
+    
+    # Configure test output
+    config.option.verbose = 2 if config.option.verbose < 2 else config.option.verbose
+
+
+def pytest_collection_modifyitems(config, items):
+    """Modify test collection to add markers automatically and configure test execution"""
+    
+    for item in items:
+        # Add unit marker to tests by default if no other category marker present
+        category_markers = ['integration', 'slow', 'database', 'ui', 'performance', 'security', 'e2e']
+        if not any(marker in item.keywords for marker in category_markers):
+            item.add_marker(pytest.mark.unit)
+        
+        # Auto-mark database-related tests
+        if any(db_term in item.name.lower() for db_term in ['database', 'db', 'sql', 'connection']):
+            item.add_marker(pytest.mark.database)
+        
+        # Auto-mark UI-related tests
+        ui_terms = ['dashboard', 'chart', 'component', 'streamlit', 'ui', 'interface']
+        if any(ui_term in item.name.lower() for ui_term in ui_terms):
+            item.add_marker(pytest.mark.ui)
+        
+        # Auto-mark performance tests
+        perf_terms = ['performance', 'benchmark', 'speed', 'memory', 'large']
+        if any(perf_term in item.name.lower() for perf_term in perf_terms):
+            item.add_marker(pytest.mark.performance)
+        
+        # Auto-mark slow tests
+        slow_terms = ['slow', 'large_dataset', 'integration', 'e2e']
+        if any(slow_term in item.name.lower() for slow_term in slow_terms):
+            item.add_marker(pytest.mark.slow)
+        
+        # Auto-mark security tests
+        security_terms = ['security', 'auth', 'permission', 'access', 'vulnerability']
+        if any(security_term in item.name.lower() for security_term in security_terms):
+            item.add_marker(pytest.mark.security)
+
+
+def pytest_runtest_setup(item):
+    """Setup before each test runs"""
+    # Skip slow tests if not explicitly requested
+    if "slow" in item.keywords and not item.config.getoption("--runslow", default=False):
+        pytest.skip("need --runslow option to run slow tests")
+    
+    # Skip database tests if database not available (can be configured)
+    if "database" in item.keywords:
+        # Add any database availability checks here
+        pass
+    
+    # Skip performance tests unless explicitly requested
+    if "performance" in item.keywords and not item.config.getoption("--runperf", default=False):
+        pytest.skip("need --runperf option to run performance tests")
+
+
+def pytest_addoption(parser):
+    """Add custom command line options"""
+    parser.addoption(
+        "--runslow", 
+        action="store_true", 
+        default=False, 
+        help="run slow tests"
+    )
+    parser.addoption(
+        "--runperf", 
+        action="store_true", 
+        default=False, 
+        help="run performance tests"
+    )
+    parser.addoption(
+        "--database-url",
+        action="store",
+        default=None,
+        help="database URL for integration tests"
+    )
+
+
+def pytest_report_header(config):
+    """Add custom header to test reports"""
+    return [
+        "OMOP Quality Dashboard Test Suite",
+        f"Python: {sys.version}",
+        f"Test Environment: {os.environ.get('ENVIRONMENT', 'test')}",
+        f"Database URL: {config.getoption('--database-url', 'Not provided')}"
+    ]
+
+
+# =============================================================================
+# FIXTURE CLEANUP AND FINALIZATION
+# =============================================================================
+
+def pytest_sessionstart(session):
+    """Called after the Session object has been created"""
+    # Create necessary test directories
+    test_dirs = ['logs', 'exports', 'data', 'cache']
+    for dir_name in test_dirs:
+        test_dir = Path(__file__).parent / dir_name
+        test_dir.mkdir(exist_ok=True)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Called after whole test run finished"""
+    # Cleanup test artifacts
+    test_dirs = ['cache', 'temp']
+    for dir_name in test_dirs:
+        test_dir = Path(__file__).parent / dir_name
+        if test_dir.exists():
+            import shutil
+            try:
+                shutil.rmtree(test_dir)
+            except OSError:
+                pass
+
+
+# =============================================================================
+# HELPER FUNCTIONS FOR TESTS
+# =============================================================================
+
+def create_mock_quality_checker(checker_type="completeness", status="PASS"):
+    """Helper function to create mock quality checkers"""
+    mock_checker = Mock()
+    mock_checker.run_checks.return_value = {
+        f'{checker_type}_check': {
+            'status': status,
+            'message': f'{checker_type} check completed',
+            'data': []
+        }
+    }
+    mock_checker.get_summary.return_value = {
+        'total_checks': 1,
+        'passed_checks': 1 if status == 'PASS' else 0,
+        'failed_checks': 1 if status == 'FAIL' else 0,
+        'warning_checks': 1 if status == 'WARNING' else 0,
+        'error_checks': 1 if status == 'ERROR' else 0
+    }
+    return mock_checker
+
+
+def assert_dataframe_structure(df, expected_columns, min_rows=0):
+    """Helper function to assert DataFrame structure"""
+    assert isinstance(df, pd.DataFrame), "Expected pandas DataFrame"
+    assert list(df.columns) == expected_columns, f"Expected columns {expected_columns}, got {list(df.columns)}"
+    assert len(df) >= min_rows, f"Expected at least {min_rows} rows, got {len(df)}"
+
+
+def assert_quality_check_result(result, expected_status=None, required_keys=None):
+    """Helper function to assert quality check result structure"""
+    assert isinstance(result, dict), "Quality check result must be a dictionary"
+    
+    # Check required keys
+    default_keys = ['status', 'message']
+    if required_keys:
+        default_keys.extend(required_keys)
+    
+    for key in default_keys:
+        assert key in result, f"Missing required key '{key}' in quality check result"
+    
+    # Check status if provided
+    if expected_status:
+        assert result['status'] == expected_status, f"Expected status '{expected_status}', got '{result['status']}'"
+    
+    # Validate status is one of the expected values
+    valid_statuses = ['PASS', 'FAIL', 'WARNING', 'ERROR']
+    assert result['status'] in valid_statuses, f"Status must be one of {valid_statuses}, got '{result['status']}'"
+
+
+# =============================================================================
+# PARAMETRIZED TEST DATA
+# =============================================================================
+
+# Common test parameters for database types
+DATABASE_TYPES = [
+    ("postgresql", 5432),
+    ("sqlserver", 1433),
+    ("mysql", 3306),
+    ("sqlite", 0)
+]
+
+# Common test parameters for quality check statuses
+QUALITY_STATUSES = ["PASS", "FAIL", "WARNING", "ERROR"]
+
+# Common test parameters for OMOP table names
+OMOP_TABLES = [
+    "person", "condition_occurrence", "drug_exposure", 
+    "procedure_occurrence", "measurement", "visit_occurrence", 
+    "observation", "death", "concept"
+]
+
+# Export these for use in test files
+__all__ = [
+    'sample_omop_data',
+    'sample_omop_data_with_issues', 
+    'large_sample_data',
+    'temp_sqlite_database',
+    'temp_sqlite_database_with_issues',
+    'mock_database',
+    'mock_database_connection_failure',
+    'mock_streamlit',
+    'sample_quality_results',
+    'sample_chart_data',
+    'sample_config',
+    'mock_config_manager',
+    'temp_directory',
+    'mock_logger',
+    'suppress_logging',
+    'benchmark_timer',
+    'memory_profiler',
+    'create_mock_quality_checker',
+    'assert_dataframe_structure',
+    'assert_quality_check_result',
+    'DATABASE_TYPES',
+    'QUALITY_STATUSES',
+    'OMOP_TABLES'
+]
