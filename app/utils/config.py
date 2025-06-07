@@ -216,12 +216,16 @@ class StreamlitConfig:
         """Setup Streamlit page configuration"""
         dashboard_config = config_manager.get_dashboard_config()
         
-        st.set_page_config(
-            page_title=dashboard_config.get('title', 'OMOP Quality Dashboard'),
-            page_icon="🏥",
-            layout="wide",
-            initial_sidebar_state="expanded"
-        )
+        try:
+            st.set_page_config(
+                page_title=dashboard_config.get('title', 'OMOP Quality Dashboard'),
+                page_icon="🏥",
+                layout="wide",
+                initial_sidebar_state="expanded"
+            )
+        except st.errors.StreamlitAPIException:
+            # Page config already set, skip
+            pass
     
     @staticmethod
     def apply_custom_css(config_manager: ConfigManager):
@@ -300,6 +304,33 @@ class StreamlitConfig:
                 text-align: center;
                 font-weight: bold;
             }}
+            
+            /* Additional utility classes */
+            .highlight-box {{
+                background-color: #e3f2fd;
+                border-left: 4px solid #2196f3;
+                padding: 1rem;
+                margin: 1rem 0;
+                border-radius: 0.25rem;
+            }}
+            
+            .data-table {{
+                border-collapse: collapse;
+                width: 100%;
+                margin: 1rem 0;
+            }}
+            
+            .data-table th,
+            .data-table td {{
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+            }}
+            
+            .data-table th {{
+                background-color: #f2f2f2;
+                font-weight: bold;
+            }}
         </style>
         """
         
@@ -339,30 +370,36 @@ def init_logging(config_manager: Optional[ConfigManager] = None):
     
     log_config = config_manager.get('logging', {})
     
-    logging.basicConfig(
-        level=getattr(logging, log_config.get('level', 'INFO')),
-        format=log_config.get('format', '%(asctime)s - %(name)s - %(levelname)s - %(message)s'),
-        handlers=[
-            logging.FileHandler(log_config.get('file', 'omop_dashboard.log')),
-            logging.StreamHandler()
-        ]
-    )
+    # Avoid reinitializing logging if already configured
+    if not logging.getLogger().handlers:
+        logging.basicConfig(
+            level=getattr(logging, log_config.get('level', 'INFO')),
+            format=log_config.get('format', '%(asctime)s - %(name)s - %(levelname)s - %(message)s'),
+            handlers=[
+                logging.FileHandler(log_config.get('file', 'omop_dashboard.log')),
+                logging.StreamHandler()
+            ]
+        )
     
     # Set up log rotation if needed
     log_file = log_config.get('file', 'omop_dashboard.log')
     max_size = log_config.get('max_file_size', 10485760)  # 10MB
     backup_count = log_config.get('backup_count', 5)
     
-    if os.path.exists(log_file) and os.path.getsize(log_file) > max_size:
-        # Simple log rotation
-        for i in range(backup_count - 1, 0, -1):
-            old_log = f"{log_file}.{i}"
-            new_log = f"{log_file}.{i + 1}"
-            if os.path.exists(old_log):
-                os.rename(old_log, new_log)
-        
-        if os.path.exists(log_file):
-            os.rename(log_file, f"{log_file}.1")
+    try:
+        if os.path.exists(log_file) and os.path.getsize(log_file) > max_size:
+            # Simple log rotation
+            for i in range(backup_count - 1, 0, -1):
+                old_log = f"{log_file}.{i}"
+                new_log = f"{log_file}.{i + 1}"
+                if os.path.exists(old_log):
+                    os.rename(old_log, new_log)
+            
+            if os.path.exists(log_file):
+                os.rename(log_file, f"{log_file}.1")
+    except OSError as e:
+        # Handle case where log rotation fails (e.g., in cloud environments)
+        logging.warning(f"Log rotation failed: {e}")
 
 
 # Utility functions for easy access
