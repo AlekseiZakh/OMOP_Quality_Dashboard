@@ -907,7 +907,7 @@ else:
      # About section
     with st.expander("👨‍⚕️ About"):
         st.markdown("""
-        **OMOP Quality Dashboard** - Created by [Your Name]
+        **OMOP Quality Dashboard** - Created by Aleksei Zakharov
         
         🩺 **Medical Doctor & Data Scientist**
         
