@@ -6,8 +6,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runtime
       args:
         - PYTHON_VERSION=3.11
+        - BUILD_DATE=${BUILD_DATE:-2024-01-01}
+        - VCS_REF=${VCS_REF:-main}
+        - VERSION=${VERSION:-1.0.0}
     container_name: omop-quality-dashboard
     ports:
       - "${DASHBOARD_PORT:-8501}:8501"
@@ -36,12 +40,12 @@ services:
     
     volumes:
       # Persist logs
-      - ./logs:/app/logs
+      - omop_logs:/app/logs
       # Persist exports
-      - ./exports:/app/exports
+      - omop_exports:/app/exports
       # Mount configuration if you want to override
       - ./config.yaml:/app/config.yaml:ro
-      # Optional: Mount custom rules
+      # Optional: Mount custom configuration directory
       - ./config:/app/config:ro
     
     depends_on:
@@ -87,10 +91,8 @@ services:
     volumes:
       # Persist database data
       - postgres_data:/var/lib/postgresql/data
-      # Mount initialization scripts
+      # Mount initialization scripts if they exist
       - ./sql/init:/docker-entrypoint-initdb.d:ro
-      # Mount sample data (optional)
-      - ./sql/sample_data:/sample_data:ro
     
     restart: unless-stopped
     
@@ -111,6 +113,9 @@ services:
         limits:
           memory: 1G
           cpus: '1'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
 
   # Redis for caching (optional)
   redis:
@@ -136,6 +141,9 @@ services:
     
     # Enable persistence
     command: redis-server --appendonly yes
+    
+    profiles:
+      - with-cache
 
   # Nginx reverse proxy (optional)
   nginx:
@@ -148,7 +156,7 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
-      - ./logs/nginx:/var/log/nginx
+      - nginx_logs:/var/log/nginx
     
     depends_on:
       - dashboard
@@ -161,263 +169,29 @@ services:
     profiles:
       - with-proxy
 
-  # Monitoring with Prometheus (optional)
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: omop-prometheus
-    ports:
-      - "9090:9090"
-    
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
-      - '--web.enable-lifecycle'
-    
-    restart: unless-stopped
-    
-    networks:
-      - omop_network
-    
-    profiles:
-      - with-monitoring
-
-  # Grafana for dashboards (optional)
-  grafana:
-    image: grafana/grafana:latest
-    container_name: omop-grafana
-    ports:
-      - "3000:3000"
-    
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
-    
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
-    
-    depends_on:
-      - prometheus
-    
-    restart: unless-stopped
-    
-    networks:
-      - omop_network
-    
-    profiles:
-      - with-monitoring
-
 # Named volumes for data persistence
 volumes:
   postgres_data:
     driver: local
+    name: omop_postgres_data
   redis_data:
     driver: local
-  prometheus_data:
+    name: omop_redis_data
+  omop_logs:
     driver: local
-  grafana_data:
+    name: omop_dashboard_logs
+  omop_exports:
     driver: local
+    name: omop_dashboard_exports
+  nginx_logs:
+    driver: local
+    name: omop_nginx_logs
 
 # Custom network
 networks:
   omop_network:
     driver: bridge
+    name: omop_quality_network
     ipam:
       config:
         - subnet: 172.20.0.0/16
-
----
-
-# docker-compose.override.yml
-# Development overrides (automatically loaded)
-
-version: '3.8'
-
-services:
-  dashboard:
-    # Development settings
-    environment:
-      - DASHBOARD_DEBUG=true
-      - DEV_MODE=true
-      - LOG_LEVEL=DEBUG
-    
-    # Mount source code for development
-    volumes:
-      - ./app:/app/app:ro
-      - ./tests:/app/tests:ro
-      - ./config.yaml:/app/config.yaml
-    
-    # Enable hot reload
-    command: >
-      python run_dashboard.py 
-      --debug 
-      --host 0.0.0.0
-
-  postgres:
-    # Development settings
-    environment:
-      - POSTGRES_DB=omop_cdm_dev
-    
-    # Expose port for external access
-    ports:
-      - "5432:5432"
-
----
-
-# docker-compose.prod.yml
-# Production configuration
-
-version: '3.8'
-
-services:
-  dashboard:
-    # Production settings
-    environment:
-      - ENVIRONMENT=production
-      - DASHBOARD_DEBUG=false
-      - LOG_LEVEL=WARNING
-      - ENABLE_METRICS=true
-    
-    # Security: run as non-root user
-    user: "1001:1001"
-    
-    # Read-only root filesystem
-    read_only: true
-    
-    # Temporary filesystems for writable directories
-    tmpfs:
-      - /tmp
-      - /app/logs
-    
-    # Security options
-    security_opt:
-      - no-new-privileges:true
-    
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-          cpus: '4'
-        reservations:
-          memory: 1G
-          cpus: '1'
-
-  postgres:
-    # Production database settings
-    environment:
-      - POSTGRES_SHARED_PRELOAD_LIBRARIES=pg_stat_statements
-      - POSTGRES_MAX_CONNECTIONS=200
-    
-    # Performance tuning
-    command: >
-      postgres
-      -c shared_preload_libraries=pg_stat_statements
-      -c max_connections=200
-      -c shared_buffers=256MB
-      -c effective_cache_size=1GB
-      -c maintenance_work_mem=64MB
-      -c checkpoint_completion_target=0.9
-      -c wal_buffers=16MB
-      -c default_statistics_target=100
-    
-    # Security: run as postgres user
-    user: postgres
-    
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2'
-
----
-
-# .dockerignore
-# Files to exclude from Docker build context
-
-# Git
-.git
-.gitignore
-
-# Python
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-.tox
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.pytest_cache/
-
-# Environments
-.env
-.env.*
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Project specific
-logs/
-exports/
-backups/
-data/
-htmlcov/
-.pytest_cache/
-*.db
-*.sqlite
-*.sqlite3
-
-# Documentation
-docs/_build/
-README.md
-CHANGELOG.md
-
-# Docker
-Dockerfile
-docker-compose*.yml
-.dockerignore
-
-# CI/CD
-.github/
-.gitlab-ci.yml
-.travis.yml
-
-# Testing
-tests/
-conftest.py
-pytest.ini
-.coverage
