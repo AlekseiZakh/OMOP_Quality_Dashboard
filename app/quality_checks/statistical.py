@@ -1,8 +1,40 @@
-from .base_checker import BaseQualityChecker
-from ..database.queries import OMOPQueries
+import sys
+import os
+from typing import Dict, List, Any
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Any
+
+# Fix import path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+
+try:
+    from .base_checker import BaseQualityChecker
+    from ..database.queries import OMOPQueries
+except ImportError:
+    try:
+        from base_checker import BaseQualityChecker
+        from database.queries import OMOPQueries
+    except ImportError:
+        # Fallback for development/testing
+        class BaseQualityChecker:
+            def __init__(self, database):
+                self.database = database
+                self.results = {}
+                
+        class OMOPQueries:
+            @staticmethod
+            def get_measurement_outliers():
+                return "SELECT 'placeholder' as outlier_check"
+            
+            @staticmethod
+            def get_visit_duration_analysis():
+                return "SELECT 'placeholder' as duration_check"
+                
+            @staticmethod
+            def get_data_density_by_year():
+                return "SELECT 'placeholder' as density_check"
 
 
 class StatisticalOutlierChecker(BaseQualityChecker):
@@ -12,25 +44,50 @@ class StatisticalOutlierChecker(BaseQualityChecker):
         """Run all statistical outlier checks"""
         self.results = {}
         
+        # Validate database connection first
+        if not self.validate_database_connection():
+            return {
+                'error': 'Database connection failed',
+                'status': 'ERROR'
+            }
+        
         # Check 1: Age outliers
+        self.log_check_start("age_outliers")
         self.results['age_outliers'] = self._check_age_outliers()
+        self.log_check_complete("age_outliers", self.results['age_outliers'].get('status', 'UNKNOWN'))
         
         # Check 2: Quantity outliers in drug exposures
+        self.log_check_start("drug_quantity_outliers")
         self.results['drug_quantity_outliers'] = self._check_drug_quantity_outliers()
+        self.log_check_complete("drug_quantity_outliers", self.results['drug_quantity_outliers'].get('status', 'UNKNOWN'))
         
         # Check 3: Measurement value outliers
+        self.log_check_start("measurement_outliers")
         self.results['measurement_outliers'] = self._check_measurement_outliers()
+        self.log_check_complete("measurement_outliers", self.results['measurement_outliers'].get('status', 'UNKNOWN'))
         
         # Check 4: Visit duration outliers
+        self.log_check_start("visit_duration_outliers")
         self.results['visit_duration_outliers'] = self._check_visit_duration_outliers()
+        self.log_check_complete("visit_duration_outliers", self.results['visit_duration_outliers'].get('status', 'UNKNOWN'))
         
         # Check 5: Data distribution anomalies
+        self.log_check_start("distribution_anomalies")
         self.results['distribution_anomalies'] = self._check_distribution_anomalies()
+        self.log_check_complete("distribution_anomalies", self.results['distribution_anomalies'].get('status', 'UNKNOWN'))
         
         return self.results
     
     def _check_age_outliers(self) -> Dict[str, Any]:
         """Check for unrealistic ages"""
+        # Check if person table exists
+        if not self.table_exists('person'):
+            return {
+                'status': 'WARNING',
+                'outlier_count': 0,
+                'message': 'Person table not found - skipping age outlier check'
+            }
+        
         try:
             age_query = """
             SELECT 
@@ -78,14 +135,18 @@ class StatisticalOutlierChecker(BaseQualityChecker):
             }
             
         except Exception as e:
-            return {
-                'status': 'ERROR',
-                'error': str(e),
-                'message': 'Failed to check age outliers'
-            }
+            return self.handle_error("age_outliers", e)
     
     def _check_drug_quantity_outliers(self) -> Dict[str, Any]:
         """Check for unusual drug quantities"""
+        # Check if drug_exposure table exists
+        if not self.table_exists('drug_exposure'):
+            return {
+                'status': 'WARNING',
+                'outlier_count': 0,
+                'message': 'Drug_exposure table not found - skipping drug quantity outlier check'
+            }
+        
         try:
             quantity_query = """
             SELECT 
@@ -120,11 +181,11 @@ class StatisticalOutlierChecker(BaseQualityChecker):
                 COUNT(*) as total_drug_exposures,
                 COUNT(quantity) as records_with_quantity,
                 COUNT(days_supply) as records_with_days_supply,
-                AVG(quantity) as avg_quantity,
-                STDDEV(quantity) as std_quantity,
-                MIN(quantity) as min_quantity,
-                MAX(quantity) as max_quantity,
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY quantity) as p95_quantity
+                COALESCE(AVG(quantity), 0) as avg_quantity,
+                COALESCE(STDDEV(quantity), 0) as std_quantity,
+                COALESCE(MIN(quantity), 0) as min_quantity,
+                COALESCE(MAX(quantity), 0) as max_quantity,
+                COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY quantity), 0) as p95_quantity
             FROM drug_exposure
             WHERE quantity IS NOT NULL AND quantity >= 0
             """
@@ -132,7 +193,12 @@ class StatisticalOutlierChecker(BaseQualityChecker):
             try:
                 summary_result = self.database.execute_query(summary_query)
                 summary_stats = summary_result.iloc[0].to_dict() if not summary_result.empty else {}
-            except:
+                # Convert numpy types to Python types for JSON serialization
+                for key, value in summary_stats.items():
+                    if isinstance(value, (np.integer, np.floating)):
+                        summary_stats[key] = float(value)
+            except Exception as e:
+                self.logger.warning(f"Failed to get summary statistics: {str(e)}")
                 summary_stats = {}
             
             # Group by issue type
@@ -155,14 +221,18 @@ class StatisticalOutlierChecker(BaseQualityChecker):
             }
             
         except Exception as e:
-            return {
-                'status': 'ERROR',
-                'error': str(e),
-                'message': 'Failed to check drug quantity outliers'
-            }
+            return self.handle_error("drug_quantity_outliers", e)
     
     def _check_measurement_outliers(self) -> Dict[str, Any]:
         """Check for unusual measurement values"""
+        # Check if measurement table exists
+        if not self.table_exists('measurement'):
+            return {
+                'status': 'WARNING',
+                'outlier_count': 0,
+                'message': 'Measurement table not found - skipping measurement outlier check'
+            }
+        
         try:
             query = OMOPQueries.get_measurement_outliers()
             result = self.database.execute_query(query)
@@ -184,6 +254,9 @@ class StatisticalOutlierChecker(BaseQualityChecker):
                 for _, row in outlier_measurements.head(5).iterrows():  # Top 5 problematic measurements
                     concept_id = row['measurement_concept_id']
                     concept_name = row['concept_name']
+                    avg_value = row.get('avg_value', 0)
+                    min_value = row.get('min_value', 0)
+                    max_value = row.get('max_value', 0)
                     
                     # Get specific outlier records
                     outlier_records_query = f"""
@@ -196,10 +269,10 @@ class StatisticalOutlierChecker(BaseQualityChecker):
                     WHERE measurement_concept_id = {concept_id}
                     AND value_as_number IS NOT NULL
                     AND (
-                        value_as_number < {row['min_value']} OR 
-                        value_as_number > {row['max_value']}
+                        value_as_number < {min_value} OR 
+                        value_as_number > {max_value}
                     )
-                    ORDER BY ABS(value_as_number - {row['avg_value']}) DESC
+                    ORDER BY ABS(value_as_number - {avg_value}) DESC
                     LIMIT 10
                     """
                     
@@ -210,8 +283,8 @@ class StatisticalOutlierChecker(BaseQualityChecker):
                             'concept_id': int(concept_id),
                             'outlier_records': outlier_records.to_dict('records') if not outlier_records.empty else []
                         })
-                    except:
-                        pass
+                    except Exception as e:
+                        self.logger.warning(f"Failed to get detailed outliers for {concept_name}: {str(e)}")
             
             return {
                 'status': 'PASS' if outlier_count == 0 else 'WARNING',
@@ -223,14 +296,18 @@ class StatisticalOutlierChecker(BaseQualityChecker):
             }
             
         except Exception as e:
-            return {
-                'status': 'ERROR',
-                'error': str(e),
-                'message': 'Failed to check measurement outliers'
-            }
+            return self.handle_error("measurement_outliers", e)
     
     def _check_visit_duration_outliers(self) -> Dict[str, Any]:
         """Check for unusual visit durations"""
+        # Check if visit_occurrence table exists
+        if not self.table_exists('visit_occurrence'):
+            return {
+                'status': 'WARNING',
+                'total_outliers': 0,
+                'message': 'Visit_occurrence table not found - skipping visit duration outlier check'
+            }
+        
         try:
             query = OMOPQueries.get_visit_duration_analysis()
             result = self.database.execute_query(query)
@@ -238,6 +315,7 @@ class StatisticalOutlierChecker(BaseQualityChecker):
             if result.empty:
                 return {
                     'status': 'WARNING',
+                    'total_outliers': 0,
                     'message': 'No visit data available for analysis'
                 }
             
@@ -253,27 +331,28 @@ class StatisticalOutlierChecker(BaseQualityChecker):
                 person_id,
                 visit_start_date,
                 visit_end_date,
-                visit_end_date - visit_start_date as duration_days,
+                EXTRACT(EPOCH FROM (visit_end_date - visit_start_date)) / 86400.0 as duration_days,
                 CASE 
-                    WHEN visit_end_date - visit_start_date < 0 THEN 'Negative duration'
-                    WHEN visit_end_date - visit_start_date > 365 THEN 'Very long visit'
+                    WHEN visit_end_date < visit_start_date THEN 'Negative duration'
+                    WHEN EXTRACT(EPOCH FROM (visit_end_date - visit_start_date)) / 86400.0 > 365 THEN 'Very long visit'
                     ELSE 'Other'
                 END as issue_type
             FROM visit_occurrence 
             WHERE visit_start_date IS NOT NULL
             AND visit_end_date IS NOT NULL
             AND (
-                visit_end_date - visit_start_date < 0
-                OR visit_end_date - visit_start_date > 365
+                visit_end_date < visit_start_date
+                OR EXTRACT(EPOCH FROM (visit_end_date - visit_start_date)) / 86400.0 > 365
             )
-            ORDER BY ABS(visit_end_date - visit_start_date) DESC
+            ORDER BY ABS(EXTRACT(EPOCH FROM (visit_end_date - visit_start_date)) / 86400.0) DESC
             LIMIT 50
             """
             
             try:
                 outlier_records = self.database.execute_query(outlier_records_query)
                 outlier_details = outlier_records.to_dict('records') if not outlier_records.empty else []
-            except:
+            except Exception as e:
+                self.logger.warning(f"Failed to get detailed visit outliers: {str(e)}")
                 outlier_details = []
             
             return {
@@ -287,11 +366,7 @@ class StatisticalOutlierChecker(BaseQualityChecker):
             }
             
         except Exception as e:
-            return {
-                'status': 'ERROR',
-                'error': str(e),
-                'message': 'Failed to check visit duration outliers'
-            }
+            return self.handle_error("visit_duration_outliers", e)
     
     def _check_distribution_anomalies(self) -> Dict[str, Any]:
         """Check for unusual data distributions"""
@@ -299,11 +374,14 @@ class StatisticalOutlierChecker(BaseQualityChecker):
             # Check gender distribution
             gender_query = """
             SELECT 
-                c.concept_name as gender,
+                COALESCE(c.concept_name, 'Unknown') as gender,
                 COUNT(*) as count,
-                ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
+                CASE 
+                    WHEN SUM(COUNT(*)) OVER() = 0 THEN 0.0
+                    ELSE ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2)
+                END as percentage
             FROM person p
-            JOIN concept c ON p.gender_concept_id = c.concept_id
+            LEFT JOIN concept c ON p.gender_concept_id = c.concept_id
             GROUP BY c.concept_name
             ORDER BY count DESC
             """
@@ -320,7 +398,10 @@ class StatisticalOutlierChecker(BaseQualityChecker):
                     ELSE 'Unknown'
                 END as age_group,
                 COUNT(*) as count,
-                ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
+                CASE 
+                    WHEN SUM(COUNT(*)) OVER() = 0 THEN 0.0
+                    ELSE ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2)
+                END as percentage
             FROM person
             WHERE year_of_birth IS NOT NULL
             GROUP BY 
@@ -342,109 +423,113 @@ class StatisticalOutlierChecker(BaseQualityChecker):
             anomalies_found = []
             
             # Process gender distribution
-            try:
-                gender_result = self.database.execute_query(gender_query)
-                if not gender_result.empty:
-                    distribution_results['gender_distribution'] = gender_result.to_dict('records')
-                    
-                    # Check for anomalies in gender distribution
-                    male_pct = gender_result[gender_result['gender'].str.contains('Male|MALE', case=False, na=False)]['percentage'].sum()
-                    female_pct = gender_result[gender_result['gender'].str.contains('Female|FEMALE', case=False, na=False)]['percentage'].sum()
-                    
-                    if abs(male_pct - female_pct) > 30:  # More than 30% difference
-                        anomalies_found.append(f"Gender distribution heavily skewed: {male_pct:.1f}% male, {female_pct:.1f}% female")
-                    
-                    if male_pct < 10 or female_pct < 10:
-                        anomalies_found.append("One gender severely underrepresented (<10%)")
-            except Exception as e:
-                distribution_results['gender_distribution'] = []
-                anomalies_found.append(f"Failed to analyze gender distribution: {str(e)}")
+            if self.table_exists('person'):
+                try:
+                    gender_result = self.database.execute_query(gender_query)
+                    if not gender_result.empty:
+                        distribution_results['gender_distribution'] = gender_result.to_dict('records')
+                        
+                        # Check for anomalies in gender distribution
+                        male_pct = gender_result[gender_result['gender'].str.contains('Male|MALE', case=False, na=False)]['percentage'].sum()
+                        female_pct = gender_result[gender_result['gender'].str.contains('Female|FEMALE', case=False, na=False)]['percentage'].sum()
+                        
+                        if abs(male_pct - female_pct) > 30:  # More than 30% difference
+                            anomalies_found.append(f"Gender distribution heavily skewed: {male_pct:.1f}% male, {female_pct:.1f}% female")
+                        
+                        if male_pct < 10 or female_pct < 10:
+                            anomalies_found.append("One gender severely underrepresented (<10%)")
+                except Exception as e:
+                    distribution_results['gender_distribution'] = []
+                    anomalies_found.append(f"Failed to analyze gender distribution: {str(e)}")
             
             # Process age distribution
-            try:
-                age_result = self.database.execute_query(age_distribution_query)
-                if not age_result.empty:
-                    distribution_results['age_distribution'] = age_result.to_dict('records')
-                    
-                    # Check for anomalies in age distribution
-                    under_18_pct = age_result[age_result['age_group'] == 'Under 18']['percentage'].sum()
-                    over_70_pct = age_result[age_result['age_group'] == 'Over 70']['percentage'].sum()
-                    
-                    if under_18_pct > 50:
-                        anomalies_found.append(f"Unusually high percentage of patients under 18: {under_18_pct:.1f}%")
-                    
-                    if over_70_pct > 60:
-                        anomalies_found.append(f"Unusually high percentage of patients over 70: {over_70_pct:.1f}%")
-                    
-                    # Check for missing age groups
-                    age_groups = set(age_result['age_group'].tolist())
-                    expected_groups = {'18-30', '31-50', '51-70'}
-                    missing_groups = expected_groups - age_groups
-                    if missing_groups:
-                        anomalies_found.append(f"Missing age groups: {', '.join(missing_groups)}")
-            except Exception as e:
-                distribution_results['age_distribution'] = []
-                anomalies_found.append(f"Failed to analyze age distribution: {str(e)}")
+            if self.table_exists('person'):
+                try:
+                    age_result = self.database.execute_query(age_distribution_query)
+                    if not age_result.empty:
+                        distribution_results['age_distribution'] = age_result.to_dict('records')
+                        
+                        # Check for anomalies in age distribution
+                        under_18_pct = age_result[age_result['age_group'] == 'Under 18']['percentage'].sum()
+                        over_70_pct = age_result[age_result['age_group'] == 'Over 70']['percentage'].sum()
+                        
+                        if under_18_pct > 50:
+                            anomalies_found.append(f"Unusually high percentage of patients under 18: {under_18_pct:.1f}%")
+                        
+                        if over_70_pct > 60:
+                            anomalies_found.append(f"Unusually high percentage of patients over 70: {over_70_pct:.1f}%")
+                        
+                        # Check for missing age groups
+                        age_groups = set(age_result['age_group'].tolist())
+                        expected_groups = {'18-30', '31-50', '51-70'}
+                        missing_groups = expected_groups - age_groups
+                        if missing_groups:
+                            anomalies_found.append(f"Missing age groups: {', '.join(missing_groups)}")
+                except Exception as e:
+                    distribution_results['age_distribution'] = []
+                    anomalies_found.append(f"Failed to analyze age distribution: {str(e)}")
             
             # Process data density by year
-            try:
-                density_result = self.database.execute_query(data_density_query)
-                if not density_result.empty:
-                    distribution_results['data_density_by_year'] = density_result.to_dict('records')
-                    
-                    # Check for anomalies in yearly data
-                    if len(density_result) > 1:
-                        # Check for sudden drops in data volume
-                        density_result['year'] = density_result['year'].astype(int)
-                        density_result = density_result.sort_values('year')
+            if self.table_exists('condition_occurrence'):
+                try:
+                    density_result = self.database.execute_query(data_density_query)
+                    if not density_result.empty:
+                        distribution_results['data_density_by_year'] = density_result.to_dict('records')
                         
-                        for i in range(1, len(density_result)):
-                            current_conditions = density_result.iloc[i]['total_conditions']
-                            previous_conditions = density_result.iloc[i-1]['total_conditions']
+                        # Check for anomalies in yearly data
+                        if len(density_result) > 1:
+                            # Check for sudden drops in data volume
+                            density_result['year'] = density_result['year'].astype(int)
+                            density_result = density_result.sort_values('year')
                             
-                            if previous_conditions > 0:
-                                pct_change = ((current_conditions - previous_conditions) / previous_conditions) * 100
+                            for i in range(1, len(density_result)):
+                                current_conditions = density_result.iloc[i]['total_conditions']
+                                previous_conditions = density_result.iloc[i-1]['total_conditions']
                                 
-                                if pct_change < -50:  # More than 50% drop
-                                    year = density_result.iloc[i]['year']
-                                    anomalies_found.append(f"Significant data drop in {year}: {pct_change:.1f}% decrease")
-                                elif pct_change > 200:  # More than 200% increase
-                                    year = density_result.iloc[i]['year']
-                                    anomalies_found.append(f"Unusual data spike in {year}: {pct_change:.1f}% increase")
-            except Exception as e:
-                distribution_results['data_density_by_year'] = []
-                anomalies_found.append(f"Failed to analyze data density: {str(e)}")
+                                if previous_conditions > 0:
+                                    pct_change = ((current_conditions - previous_conditions) / previous_conditions) * 100
+                                    
+                                    if pct_change < -50:  # More than 50% drop
+                                        year = density_result.iloc[i]['year']
+                                        anomalies_found.append(f"Significant data drop in {year}: {pct_change:.1f}% decrease")
+                                    elif pct_change > 200:  # More than 200% increase
+                                        year = density_result.iloc[i]['year']
+                                        anomalies_found.append(f"Unusual data spike in {year}: {pct_change:.1f}% increase")
+                except Exception as e:
+                    distribution_results['data_density_by_year'] = []
+                    anomalies_found.append(f"Failed to analyze data density: {str(e)}")
             
             # Check for duplicates (potential data quality issue)
-            try:
-                duplicate_query = """
-                WITH duplicate_conditions AS (
+            if self.table_exists('condition_occurrence'):
+                try:
+                    duplicate_query = """
+                    WITH duplicate_conditions AS (
+                        SELECT 
+                            person_id,
+                            condition_concept_id,
+                            condition_start_date,
+                            COUNT(*) as duplicate_count
+                        FROM condition_occurrence
+                        GROUP BY person_id, condition_concept_id, condition_start_date
+                        HAVING COUNT(*) > 1
+                    )
                     SELECT 
-                        person_id,
-                        condition_concept_id,
-                        condition_start_date,
-                        COUNT(*) as duplicate_count
-                    FROM condition_occurrence
-                    GROUP BY person_id, condition_concept_id, condition_start_date
-                    HAVING COUNT(*) > 1
-                )
-                SELECT 
-                    COUNT(*) as total_duplicate_groups,
-                    SUM(duplicate_count) as total_duplicate_records
-                FROM duplicate_conditions
-                """
-                
-                duplicate_result = self.database.execute_query(duplicate_query)
-                if not duplicate_result.empty:
-                    dup_data = duplicate_result.iloc[0].to_dict()
-                    distribution_results['duplicate_analysis'] = dup_data
+                        COUNT(*) as total_duplicate_groups,
+                        SUM(duplicate_count) as total_duplicate_records
+                    FROM duplicate_conditions
+                    """
                     
-                    total_duplicates = dup_data.get('total_duplicate_records', 0)
-                    if total_duplicates > 100:
-                        anomalies_found.append(f"High number of duplicate condition records: {total_duplicates}")
-            except Exception as e:
-                distribution_results['duplicate_analysis'] = {}
-                anomalies_found.append(f"Failed to analyze duplicates: {str(e)}")
+                    duplicate_result = self.database.execute_query(duplicate_query)
+                    if not duplicate_result.empty:
+                        dup_data = duplicate_result.iloc[0].to_dict()
+                        distribution_results['duplicate_analysis'] = dup_data
+                        
+                        total_duplicates = dup_data.get('total_duplicate_records', 0)
+                        if total_duplicates > 100:
+                            anomalies_found.append(f"High number of duplicate condition records: {total_duplicates}")
+                except Exception as e:
+                    distribution_results['duplicate_analysis'] = {}
+                    anomalies_found.append(f"Failed to analyze duplicates: {str(e)}")
             
             # Determine overall status
             if not anomalies_found:
@@ -463,8 +548,4 @@ class StatisticalOutlierChecker(BaseQualityChecker):
             }
             
         except Exception as e:
-            return {
-                'status': 'ERROR',
-                'error': str(e),
-                'message': 'Failed to check distribution anomalies'
-            }
+            return self.handle_error("distribution_anomalies", e)
