@@ -1,5 +1,6 @@
 from typing import Dict, List, Optional
 from datetime import date
+import logging
 
 
 class OMOPQueries:
@@ -38,6 +39,9 @@ class OMOPQueries:
     @staticmethod
     def get_completeness_check(table_name: str, fields: List[str]) -> str:
         """Generate completeness check query for specified fields"""
+        if not fields:
+            raise ValueError("Fields list cannot be empty")
+        
         null_conditions = [f"{field} IS NULL" for field in fields]
         
         return f"""
@@ -45,10 +49,13 @@ class OMOPQueries:
             '{table_name}' as table_name,
             COUNT(*) as total_records,
             SUM(CASE WHEN {' OR '.join(null_conditions)} THEN 1 ELSE 0 END) as null_records,
-            ROUND(
-                (SUM(CASE WHEN {' OR '.join(null_conditions)} THEN 1 ELSE 0 END) * 100.0) / COUNT(*), 
-                2
-            ) as null_percentage
+            CASE 
+                WHEN COUNT(*) = 0 THEN 0.0
+                ELSE ROUND(
+                    (SUM(CASE WHEN {' OR '.join(null_conditions)} THEN 1 ELSE 0 END) * 100.0) / COUNT(*), 
+                    2
+                )
+            END as null_percentage
         FROM {table_name}
         """
     
@@ -65,25 +72,26 @@ class OMOPQueries:
             SUM(CASE WHEN year_of_birth < 1900 THEN 1 ELSE 0 END) as invalid_birth_year_low,
             SUM(CASE WHEN year_of_birth > EXTRACT(YEAR FROM CURRENT_DATE) THEN 1 ELSE 0 END) as invalid_birth_year_high,
             SUM(CASE WHEN (EXTRACT(YEAR FROM CURRENT_DATE) - year_of_birth) > 120 THEN 1 ELSE 0 END) as unrealistic_age,
-            ROUND(
-                (COUNT(*) - SUM(CASE WHEN gender_concept_id IS NULL OR year_of_birth IS NULL THEN 1 ELSE 0 END)) * 100.0 / COUNT(*),
-                2
-            ) as completeness_score
+            CASE 
+                WHEN COUNT(*) = 0 THEN 0.0
+                ELSE ROUND(
+                    (COUNT(*) - SUM(CASE WHEN gender_concept_id IS NULL OR year_of_birth IS NULL THEN 1 ELSE 0 END)) * 100.0 / COUNT(*),
+                    2
+                )
+            END as completeness_score
         FROM person
         """
     
     @staticmethod
     def get_future_dates_check() -> str:
         """Check for future dates across clinical tables"""
-        current_date = date.today().strftime('%Y-%m-%d')
-        
-        return f"""
+        return """
         SELECT 
             'condition_occurrence' as table_name,
             'condition_start_date' as date_field,
             COUNT(*) as future_count
         FROM condition_occurrence 
-        WHERE condition_start_date > '{current_date}'
+        WHERE condition_start_date > CURRENT_DATE
         
         UNION ALL
         
@@ -92,7 +100,7 @@ class OMOPQueries:
             'drug_exposure_start_date' as date_field,
             COUNT(*) as future_count
         FROM drug_exposure 
-        WHERE drug_exposure_start_date > '{current_date}'
+        WHERE drug_exposure_start_date > CURRENT_DATE
         
         UNION ALL
         
@@ -101,7 +109,7 @@ class OMOPQueries:
             'procedure_date' as date_field,
             COUNT(*) as future_count
         FROM procedure_occurrence 
-        WHERE procedure_date > '{current_date}'
+        WHERE procedure_date > CURRENT_DATE
         
         UNION ALL
         
@@ -110,7 +118,7 @@ class OMOPQueries:
             'measurement_date' as date_field,
             COUNT(*) as future_count
         FROM measurement 
-        WHERE measurement_date > '{current_date}'
+        WHERE measurement_date > CURRENT_DATE
         
         UNION ALL
         
@@ -119,7 +127,7 @@ class OMOPQueries:
             'visit_start_date' as date_field,
             COUNT(*) as future_count
         FROM visit_occurrence 
-        WHERE visit_start_date > '{current_date}'
+        WHERE visit_start_date > CURRENT_DATE
         
         ORDER BY future_count DESC
         """
@@ -166,6 +174,23 @@ class OMOPQueries:
         """
     
     @staticmethod
+    def get_birth_death_consistency() -> str:
+        """Check for deaths before birth (temporal logic violation)"""
+        return """
+        SELECT COUNT(*) as inconsistent_count
+        FROM person p
+        JOIN death d ON p.person_id = d.person_id
+        WHERE d.death_date < 
+            CASE 
+                WHEN p.month_of_birth IS NOT NULL AND p.day_of_birth IS NOT NULL 
+                THEN MAKE_DATE(p.year_of_birth, p.month_of_birth, p.day_of_birth)
+                WHEN p.month_of_birth IS NOT NULL 
+                THEN MAKE_DATE(p.year_of_birth, p.month_of_birth, 1)
+                ELSE MAKE_DATE(p.year_of_birth, 1, 1)
+            END
+        """
+    
+    @staticmethod
     def get_unmapped_concepts_summary() -> str:
         """Get summary of unmapped concepts across domains"""
         return """
@@ -173,10 +198,13 @@ class OMOPQueries:
             'Condition' as domain,
             COUNT(*) as total_records,
             SUM(CASE WHEN condition_concept_id = 0 THEN 1 ELSE 0 END) as unmapped_count,
-            ROUND(
-                (SUM(CASE WHEN condition_concept_id = 0 THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
-                2
-            ) as unmapped_percentage
+            CASE 
+                WHEN COUNT(*) = 0 THEN 0.0
+                ELSE ROUND(
+                    (SUM(CASE WHEN condition_concept_id = 0 THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
+                    2
+                )
+            END as unmapped_percentage
         FROM condition_occurrence
         
         UNION ALL
@@ -185,10 +213,13 @@ class OMOPQueries:
             'Drug' as domain,
             COUNT(*) as total_records,
             SUM(CASE WHEN drug_concept_id = 0 THEN 1 ELSE 0 END) as unmapped_count,
-            ROUND(
-                (SUM(CASE WHEN drug_concept_id = 0 THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
-                2
-            ) as unmapped_percentage
+            CASE 
+                WHEN COUNT(*) = 0 THEN 0.0
+                ELSE ROUND(
+                    (SUM(CASE WHEN drug_concept_id = 0 THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
+                    2
+                )
+            END as unmapped_percentage
         FROM drug_exposure
         
         UNION ALL
@@ -197,10 +228,13 @@ class OMOPQueries:
             'Procedure' as domain,
             COUNT(*) as total_records,
             SUM(CASE WHEN procedure_concept_id = 0 THEN 1 ELSE 0 END) as unmapped_count,
-            ROUND(
-                (SUM(CASE WHEN procedure_concept_id = 0 THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
-                2
-            ) as unmapped_percentage
+            CASE 
+                WHEN COUNT(*) = 0 THEN 0.0
+                ELSE ROUND(
+                    (SUM(CASE WHEN procedure_concept_id = 0 THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
+                    2
+                )
+            END as unmapped_percentage
         FROM procedure_occurrence
         
         UNION ALL
@@ -209,10 +243,13 @@ class OMOPQueries:
             'Measurement' as domain,
             COUNT(*) as total_records,
             SUM(CASE WHEN measurement_concept_id = 0 THEN 1 ELSE 0 END) as unmapped_count,
-            ROUND(
-                (SUM(CASE WHEN measurement_concept_id = 0 THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
-                2
-            ) as unmapped_percentage
+            CASE 
+                WHEN COUNT(*) = 0 THEN 0.0
+                ELSE ROUND(
+                    (SUM(CASE WHEN measurement_concept_id = 0 THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
+                    2
+                )
+            END as unmapped_percentage
         FROM measurement
         
         ORDER BY unmapped_percentage DESC
@@ -224,7 +261,7 @@ class OMOPQueries:
         return """
         WITH concept_usage AS (
             SELECT 
-                c.standard_concept,
+                COALESCE(c.standard_concept, 'NULL') as standard_concept,
                 COUNT(*) as usage_count
             FROM condition_occurrence co
             JOIN concept c ON co.condition_concept_id = c.concept_id
@@ -234,7 +271,7 @@ class OMOPQueries:
             UNION ALL
             
             SELECT 
-                c.standard_concept,
+                COALESCE(c.standard_concept, 'NULL') as standard_concept,
                 COUNT(*) as usage_count
             FROM drug_exposure de
             JOIN concept c ON de.drug_concept_id = c.concept_id
@@ -244,7 +281,7 @@ class OMOPQueries:
             UNION ALL
             
             SELECT 
-                c.standard_concept,
+                COALESCE(c.standard_concept, 'NULL') as standard_concept,
                 COUNT(*) as usage_count
             FROM procedure_occurrence po
             JOIN concept c ON po.procedure_concept_id = c.concept_id
@@ -252,12 +289,15 @@ class OMOPQueries:
             GROUP BY c.standard_concept
         )
         SELECT 
-            COALESCE(standard_concept, 'NULL') as standard_concept,
+            standard_concept,
             SUM(usage_count) as total_usage,
-            ROUND(
-                (SUM(usage_count) * 100.0) / SUM(SUM(usage_count)) OVER(),
-                2
-            ) as percentage
+            CASE 
+                WHEN SUM(SUM(usage_count)) OVER() = 0 THEN 0.0
+                ELSE ROUND(
+                    (SUM(usage_count) * 100.0) / SUM(SUM(usage_count)) OVER(),
+                    2
+                )
+            END as percentage
         FROM concept_usage
         GROUP BY standard_concept
         ORDER BY total_usage DESC
@@ -287,7 +327,7 @@ class OMOPQueries:
         
         UNION ALL
         
-        -- Conditions without valid visit_occurrence_id
+        -- Conditions without valid visit_occurrence_id (when specified)
         SELECT 
             'condition_occurrence -> visit_occurrence' as relationship,
             COUNT(*) as violation_count
@@ -297,7 +337,7 @@ class OMOPQueries:
         
         UNION ALL
         
-        -- Drug exposures without valid visit_occurrence_id
+        -- Drug exposures without valid visit_occurrence_id (when specified)
         SELECT 
             'drug_exposure -> visit_occurrence' as relationship,
             COUNT(*) as violation_count
@@ -316,18 +356,36 @@ class OMOPQueries:
             v.vocabulary_id,
             v.vocabulary_name,
             COUNT(DISTINCT c.concept_id) as unique_concepts,
-            COUNT(co.condition_occurrence_id) as condition_usage,
-            COUNT(de.drug_exposure_id) as drug_usage,
-            COUNT(po.procedure_occurrence_id) as procedure_usage
+            COALESCE(cond_usage.usage_count, 0) as condition_usage,
+            COALESCE(drug_usage.usage_count, 0) as drug_usage,
+            COALESCE(proc_usage.usage_count, 0) as procedure_usage,
+            (COALESCE(cond_usage.usage_count, 0) + 
+             COALESCE(drug_usage.usage_count, 0) + 
+             COALESCE(proc_usage.usage_count, 0)) as total_usage
         FROM vocabulary v
         LEFT JOIN concept c ON v.vocabulary_id = c.vocabulary_id
-        LEFT JOIN condition_occurrence co ON c.concept_id = co.condition_concept_id
-        LEFT JOIN drug_exposure de ON c.concept_id = de.drug_concept_id
-        LEFT JOIN procedure_occurrence po ON c.concept_id = po.procedure_concept_id
+        LEFT JOIN (
+            SELECT condition_concept_id, COUNT(*) as usage_count
+            FROM condition_occurrence 
+            WHERE condition_concept_id != 0
+            GROUP BY condition_concept_id
+        ) cond_usage ON c.concept_id = cond_usage.condition_concept_id
+        LEFT JOIN (
+            SELECT drug_concept_id, COUNT(*) as usage_count
+            FROM drug_exposure 
+            WHERE drug_concept_id != 0
+            GROUP BY drug_concept_id
+        ) drug_usage ON c.concept_id = drug_usage.drug_concept_id
+        LEFT JOIN (
+            SELECT procedure_concept_id, COUNT(*) as usage_count
+            FROM procedure_occurrence 
+            WHERE procedure_concept_id != 0
+            GROUP BY procedure_concept_id
+        ) proc_usage ON c.concept_id = proc_usage.procedure_concept_id
         WHERE c.concept_id IS NOT NULL AND c.concept_id != 0
-        GROUP BY v.vocabulary_id, v.vocabulary_name
+        GROUP BY v.vocabulary_id, v.vocabulary_name, cond_usage.usage_count, drug_usage.usage_count, proc_usage.usage_count
         HAVING COUNT(DISTINCT c.concept_id) > 0
-        ORDER BY (COUNT(co.condition_occurrence_id) + COUNT(de.drug_exposure_id) + COUNT(po.procedure_occurrence_id)) DESC
+        ORDER BY total_usage DESC
         LIMIT 20
         """
     
@@ -365,12 +423,12 @@ class OMOPQueries:
             measurement_concept_id,
             concept_name,
             measurement_count,
-            ROUND(avg_value, 2) as avg_value,
-            ROUND(std_value, 2) as std_value,
-            min_value,
-            max_value,
-            ROUND(q1, 2) as q1,
-            ROUND(q3, 2) as q3,
+            ROUND(COALESCE(avg_value, 0), 2) as avg_value,
+            ROUND(COALESCE(std_value, 0), 2) as std_value,
+            COALESCE(min_value, 0) as min_value,
+            COALESCE(max_value, 0) as max_value,
+            ROUND(COALESCE(q1, 0), 2) as q1,
+            ROUND(COALESCE(q3, 0), 2) as q3,
             CASE 
                 WHEN concept_name ILIKE '%heart rate%' AND (min_value < 30 OR max_value > 200) THEN 'OUTLIER'
                 WHEN concept_name ILIKE '%temperature%' AND (min_value < 32 OR max_value > 45) THEN 'OUTLIER'
@@ -390,29 +448,32 @@ class OMOPQueries:
         return """
         SELECT 
             visit_concept_id,
-            c.concept_name as visit_type,
+            COALESCE(c.concept_name, 'Unknown') as visit_type,
             COUNT(*) as visit_count,
-            AVG(CASE 
-                WHEN visit_end_date IS NOT NULL 
-                THEN visit_end_date - visit_start_date 
-                ELSE NULL 
-            END) as avg_duration_days,
+            ROUND(
+                AVG(CASE 
+                    WHEN visit_end_date IS NOT NULL 
+                    THEN EXTRACT(EPOCH FROM (visit_end_date - visit_start_date)) / 86400.0
+                    ELSE NULL 
+                END), 2
+            ) as avg_duration_days,
             MIN(CASE 
                 WHEN visit_end_date IS NOT NULL 
-                THEN visit_end_date - visit_start_date 
+                THEN EXTRACT(EPOCH FROM (visit_end_date - visit_start_date)) / 86400.0
                 ELSE NULL 
             END) as min_duration_days,
             MAX(CASE 
                 WHEN visit_end_date IS NOT NULL 
-                THEN visit_end_date - visit_start_date 
+                THEN EXTRACT(EPOCH FROM (visit_end_date - visit_start_date)) / 86400.0
                 ELSE NULL 
             END) as max_duration_days,
             SUM(CASE 
-                WHEN visit_end_date IS NOT NULL AND visit_end_date - visit_start_date < 0 
+                WHEN visit_end_date IS NOT NULL AND visit_end_date < visit_start_date 
                 THEN 1 ELSE 0 
             END) as negative_durations,
             SUM(CASE 
-                WHEN visit_end_date IS NOT NULL AND visit_end_date - visit_start_date > 365 
+                WHEN visit_end_date IS NOT NULL AND 
+                     EXTRACT(EPOCH FROM (visit_end_date - visit_start_date)) / 86400.0 > 365 
                 THEN 1 ELSE 0 
             END) as very_long_visits
         FROM visit_occurrence vo
@@ -430,7 +491,10 @@ class OMOPQueries:
             EXTRACT(YEAR FROM condition_start_date) as year,
             COUNT(DISTINCT person_id) as unique_patients,
             COUNT(*) as total_conditions,
-            ROUND(COUNT(*) * 1.0 / COUNT(DISTINCT person_id), 2) as conditions_per_patient
+            CASE 
+                WHEN COUNT(DISTINCT person_id) = 0 THEN 0.0
+                ELSE ROUND(COUNT(*) * 1.0 / COUNT(DISTINCT person_id), 2)
+            END as conditions_per_patient
         FROM condition_occurrence
         WHERE condition_start_date IS NOT NULL
         AND EXTRACT(YEAR FROM condition_start_date) >= 2010
@@ -459,7 +523,8 @@ class QualityCheckQueries:
         """Return list of temporal integrity check queries"""
         return [
             OMOPQueries.get_future_dates_check(),
-            OMOPQueries.get_events_after_death()
+            OMOPQueries.get_events_after_death(),
+            OMOPQueries.get_birth_death_consistency()
         ]
     
     @staticmethod
@@ -485,6 +550,17 @@ class QualityCheckQueries:
             OMOPQueries.get_measurement_outliers(),
             OMOPQueries.get_visit_duration_analysis()
         ]
+    
+    @staticmethod
+    def get_all_quality_checks() -> Dict[str, List[str]]:
+        """Return all quality checks organized by category"""
+        return {
+            'completeness': QualityCheckQueries.critical_completeness_checks(),
+            'temporal': QualityCheckQueries.temporal_integrity_checks(),
+            'concept_mapping': QualityCheckQueries.concept_quality_checks(),
+            'referential': QualityCheckQueries.referential_integrity_checks(),
+            'statistical': QualityCheckQueries.statistical_outlier_checks()
+        }
 
 
 # Export the main classes
