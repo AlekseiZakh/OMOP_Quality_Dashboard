@@ -725,34 +725,36 @@ else:
     <div class="welcome-container">
         <div class="quality-summary">
         
-        ## Welcome to the OMOP Quality Dashboard! 🎉
+        <h2>Welcome to the OMOP Quality Dashboard! 🎉</h2>
         
-        This comprehensive dashboard helps you monitor and analyze the quality of your OMOP Common Data Model implementation.
+        <p>This comprehensive dashboard helps you monitor and analyze the quality of your OMOP Common Data Model implementation.</p>
         
-        ### 🚀 Getting Started:
-        1. **Connect to Database**: Use the sidebar to connect to your OMOP database
-        2. **Overview**: Get a high-level view of your data quality
-        3. **Run Quality Checks**: Analyze completeness, temporal consistency, and more
-        4. **Generate Reports**: Export findings and track improvements over time
+        <h3>🚀 Getting Started:</h3>
+        <ol>
+            <li><strong>Connect to Database</strong>: Use the sidebar to connect to your OMOP database</li>
+            <li><strong>Overview</strong>: Get a high-level view of your data quality</li>
+            <li><strong>Run Quality Checks</strong>: Analyze completeness, temporal consistency, and more</li>
+            <li><strong>Generate Reports</strong>: Export findings and track improvements over time</li>
+        </ol>
         
-        ### 📊 Quality Dimensions Analyzed:
-        - **📋 Data Completeness**: Missing values, null percentages, critical field analysis
-        - **⏰ Temporal Consistency**: Future dates, chronological logic, events after death
-        - **🔗 Concept Mapping**: Unmapped concepts, vocabulary coverage, standard concept usage
-        - **🔍 Referential Integrity**: Foreign key violations, orphaned records
-        - **📈 Statistical Analysis**: Outliers, distributions, demographic consistency
+        <h3>📊 Quality Dimensions Analyzed:</h3>
+        <ul>
+            <li><strong>📋 Data Completeness</strong>: Missing values, null percentages, critical field analysis</li>
+            <li><strong>⏰ Temporal Consistency</strong>: Future dates, chronological logic, events after death</li>
+            <li><strong>🔗 Concept Mapping</strong>: Unmapped concepts, vocabulary coverage, standard concept usage</li>
+            <li><strong>🔍 Referential Integrity</strong>: Foreign key violations, orphaned records</li>
+            <li><strong>📈 Statistical Analysis</strong>: Outliers, distributions, demographic consistency</li>
+        </ul>
         
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Database types section with better styling
+    # Database types section
     st.markdown("""
     <div class="welcome-container">
         <div class="quality-summary">
-        
-        ### 🔧 Supported Database Systems:
-        
+        <h3>🔧 Supported Database Systems:</h3>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -788,14 +790,12 @@ else:
     st.markdown("""
     <div class="welcome-container">
         <div class="quality-summary">
-        
-        ### 🎯 Key Features:
-        
+        <h3>🎯 Key Features:</h3>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Feature highlights
+    # Feature highlights using columns
     col1, col2 = st.columns(2)
     
     with col1:
@@ -828,17 +828,73 @@ else:
         </div>
         """, unsafe_allow_html=True)
     
-    # Call to action
-    st.markdown("""
-    <div class="welcome-container">
-        <div class="quality-summary" style="text-align: center; background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); border: 2px solid #2196f3;">
-        
-        ### 🚀 Ready to start?
-        
+    # Alternative approach using native Streamlit components for better formatting
+    st.markdown("---")
+    
+    # Call to action using native Streamlit
+    st.markdown("### 🚀 Ready to Get Started?")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.info("""
         **Connect your OMOP database using the sidebar to begin your data quality journey!** 👈
         
         Need help? Check out our documentation or contact support for assistance.
+        """)
+    
+    # Additional information using expandable sections
+    with st.expander("📖 Learn More About OMOP Quality Assessment"):
+        st.markdown("""
+        The **OMOP Common Data Model (CDM)** is a critical standard for healthcare data analytics. 
+        Quality assessment ensures:
         
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+        - **Reliable Research Results**: Clean data leads to trustworthy findings
+        - **Regulatory Compliance**: Meet healthcare data standards and regulations  
+        - **Operational Efficiency**: Identify and fix data issues before they impact analysis
+        - **Cost Savings**: Prevent expensive data quality issues downstream
+        
+        This dashboard automates the quality assessment process, providing:
+        - **Automated Monitoring**: Regular quality checks without manual intervention
+        - **Standardized Metrics**: Consistent quality measurements across your organization
+        - **Actionable Insights**: Clear guidance on what needs to be fixed and how
+        """)
+    
+    with st.expander("🎓 New to OMOP CDM?"):
+        st.markdown("""
+        **OMOP CDM** transforms healthcare data into a standard format for research and analytics.
+        
+        **Key Benefits:**
+        - **Standardization**: All data follows the same structure
+        - **Interoperability**: Easy data sharing between organizations
+        - **Research Ready**: Optimized for clinical research and population health studies
+        - **Community Support**: Large community of users and developers
+        
+        **Getting Started:**
+        1. Connect to your OMOP database
+        2. Run the overview checks to understand your data
+        3. Focus on critical quality issues first
+        4. Use the detailed analysis tools for deep dives
+        """)
+    
+    # Sample screenshots or demo section (placeholder)
+    st.markdown("### 📸 Dashboard Preview")
+    
+    preview_col1, preview_col2 = st.columns(2)
+    
+    with preview_col1:
+        st.info("""
+        **📋 Completeness Analysis**
+        - Table-level completeness scoring
+        - Critical field validation  
+        - Person demographics analysis
+        - Interactive completeness heatmaps
+        """)
+    
+    with preview_col2:
+        st.info("""
+        **⏰ Temporal Validation**
+        - Future date detection
+        - Birth/death consistency
+        - Event chronology validation
+        - Age-related outlier identification
+        """)
