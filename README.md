@@ -1,8 +1,8 @@
 🏥 OMOP Quality Dashboard
-![alt text]([url](https://img.shields.io/badge/OMOP-Quality%20Dashboard-blue)) 
-![alt text]([url]https://img.shields.io/badge/Python-3.8%2B-green)
-![alt text]([url](https://img.shields.io/badge/Streamlit-1.28%2B-red)) 
-![alt text]([url](https://img.shields.io/badge/License-MIT-yellow)) 
+![alt text]((https://img.shields.io/badge/OMOP-Quality%20Dashboard-blue)) 
+![alt text](https://img.shields.io/badge/Python-3.8%2B-green)
+![alt text]((https://img.shields.io/badge/Streamlit-1.28%2B-red)) 
+![alt text]((https://img.shields.io/badge/License-MIT-yellow)) 
 
 A comprehensive data quality monitoring dashboard for OMOP Common Data Model implementations. Automatically detects, visualizes, and reports data quality issues to help healthcare organizations maintain high-quality research databases.
 🎯 Features
