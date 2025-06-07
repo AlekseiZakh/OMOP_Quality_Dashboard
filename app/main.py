@@ -720,6 +720,16 @@ FROM person;
                 logger.error(f"Query execution error: {e}")
 
 else:
+
+    # Header with GitHub link
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.title("🏥 OMOP Quality Dashboard")
+        st.markdown("Comprehensive data quality monitoring for OMOP Common Data Model implementations")
+    
+    with col3:
+        st.markdown("[![GitHub](https://img.shields.io/badge/GitHub-Repository-black?style=for-the-badge&logo=github)](https://github.com/AlekseiZakh/OMOP_Quality_Dashboard)")
+    
     # Welcome screen when not connected
     st.markdown("""
     <div class="welcome-container">
@@ -893,4 +903,25 @@ else:
         - Birth/death consistency
         - Event chronology validation
         - Age-related outlier identification
+        """)
+     # About section
+    with st.expander("👨‍⚕️ About"):
+        st.markdown("""
+        **OMOP Quality Dashboard** - Created by [Your Name]
+        
+        🩺 **Medical Doctor & Data Scientist**
+        
+        This dashboard was developed to address the critical need for comprehensive data quality monitoring in OMOP CDM implementations. 
+        With extensive experience in healthcare informatics and data science, this tool combines clinical expertise with technical 
+        innovation to ensure the highest standards of data quality for research and analytics.
+        
+        **Key Expertise:**
+        - Healthcare Data Quality & Governance
+        - OMOP Common Data Model Implementation
+        - Clinical Research Informatics
+        - Healthcare Analytics & Visualization
+        
+        **Connect:**
+        - 🐙 [GitHub](https://github.com/AlekseiZakh)
+        - 💼 [LinkedIn](https://linkedin.com/in/alekseizakharovgaydukov)
         """)
