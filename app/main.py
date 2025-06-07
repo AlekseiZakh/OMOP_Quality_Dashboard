@@ -76,6 +76,7 @@ st.markdown("""
         margin-bottom: 2rem;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
     }
+    
     .metric-card {
         background: linear-gradient(135deg, #f0f2f6 0%, #e8ecf0 100%);
         padding: 1.5rem;
@@ -84,6 +85,7 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         border: 1px solid #ddd;
     }
+    
     .status-pass { 
         color: #28a745; 
         font-weight: bold;
@@ -100,18 +102,152 @@ st.markdown("""
         color: #6c757d; 
         font-weight: bold;
     }
+    
+    .quality-summary {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 2rem;
+        border-radius: 0.75rem;
+        border: 2px solid #e9ecef;
+        margin: 1rem 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        color: #495057 !important;
+    }
+    
+    .quality-summary h2 {
+        color: #1f77b4 !important;
+        border-bottom: 2px solid #1f77b4;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .quality-summary h3 {
+        color: #343a40 !important;
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .quality-summary p, .quality-summary li {
+        color: #495057 !important;
+        line-height: 1.6;
+        font-size: 1rem;
+    }
+    
+    .quality-summary ul {
+        padding-left: 1.5rem;
+    }
+    
+    .quality-summary strong {
+        color: #343a40 !important;
+        font-weight: 600;
+    }
+    
+    /* Welcome screen specific styling */
+    .welcome-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .feature-highlight {
+        background: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 0 0.5rem 0.5rem 0;
+    }
+    
+    .feature-highlight h4 {
+        color: #1976d2 !important;
+        margin-bottom: 0.5rem;
+    }
+    
+    .feature-highlight p {
+        color: #37474f !important;
+        margin-bottom: 0;
+    }
+    
+    .database-types {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .db-type-card {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    .db-type-card h4 {
+        color: #495057 !important;
+        margin-bottom: 0.5rem;
+    }
+    
+    .db-type-card p {
+        color: #6c757d !important;
+        font-size: 0.9rem;
+    }
+    
     .sidebar .sidebar-content {
         background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
     }
+    
     .stAlert {
         border-radius: 0.5rem;
     }
-    .quality-summary {
-        background: white;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #1f77b4;
-        margin: 1rem 0;
+    
+    /* Dark mode support */
+    @media (prefers-color-scheme: dark) {
+        .quality-summary {
+            background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+            border-color: #4a5568;
+            color: #e2e8f0 !important;
+        }
+        
+        .quality-summary h2 {
+            color: #63b3ed !important;
+            border-bottom-color: #63b3ed;
+        }
+        
+        .quality-summary h3 {
+            color: #f7fafc !important;
+        }
+        
+        .quality-summary p, .quality-summary li {
+            color: #e2e8f0 !important;
+        }
+        
+        .quality-summary strong {
+            color: #f7fafc !important;
+        }
+        
+        .feature-highlight {
+            background: #2d3748;
+            border-left-color: #63b3ed;
+        }
+        
+        .feature-highlight h4 {
+            color: #63b3ed !important;
+        }
+        
+        .feature-highlight p {
+            color: #e2e8f0 !important;
+        }
+        
+        .db-type-card {
+            background: #2d3748;
+            border-color: #4a5568;
+        }
+        
+        .db-type-card h4 {
+            color: #f7fafc !important;
+        }
+        
+        .db-type-card p {
+            color: #a0aec0 !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -586,71 +722,123 @@ FROM person;
 else:
     # Welcome screen when not connected
     st.markdown("""
-    <div class="quality-summary">
-    
-    ## Welcome to the OMOP Quality Dashboard! 🎉
-    
-    This comprehensive dashboard helps you monitor and analyze the quality of your OMOP Common Data Model implementation.
-    
-    ### 🚀 Getting Started:
-    1. **Connect to Database**: Use the sidebar to connect to your OMOP database
-    2. **Overview**: Get a high-level view of your data quality
-    3. **Run Quality Checks**: Analyze completeness, temporal consistency, and more
-    4. **Generate Reports**: Export findings and track improvements over time
-    
-    ### 📊 Quality Dimensions Analyzed:
-    - **📋 Data Completeness**: Missing values, null percentages, critical field analysis
-    - **⏰ Temporal Consistency**: Future dates, chronological logic, events after death
-    - **🔗 Concept Mapping**: Unmapped concepts, vocabulary coverage, standard concept usage
-    - **🔍 Referential Integrity**: Foreign key violations, orphaned records
-    - **📈 Statistical Analysis**: Outliers, distributions, demographic consistency
-    
-    ### 🔧 Supported Database Systems:
-    - **PostgreSQL** - Most common for OMOP implementations
-    - **Microsoft SQL Server** - Enterprise healthcare environments  
-    - **SQLite** - Testing and development scenarios
-    
-    ### 🎯 Key Features:
-    - **Real-time Quality Monitoring** - Live dashboard updates
-    - **Interactive Visualizations** - Drill-down capabilities
-    - **Custom Query Interface** - Advanced analysis tools
-    - **Export & Reporting** - Share findings with your team
-    - **Configurable Thresholds** - Adapt to your quality standards
-    
-    **Ready to start?** Connect your OMOP database using the sidebar! 👈
-    
+    <div class="welcome-container">
+        <div class="quality-summary">
+        
+        ## Welcome to the OMOP Quality Dashboard! 🎉
+        
+        This comprehensive dashboard helps you monitor and analyze the quality of your OMOP Common Data Model implementation.
+        
+        ### 🚀 Getting Started:
+        1. **Connect to Database**: Use the sidebar to connect to your OMOP database
+        2. **Overview**: Get a high-level view of your data quality
+        3. **Run Quality Checks**: Analyze completeness, temporal consistency, and more
+        4. **Generate Reports**: Export findings and track improvements over time
+        
+        ### 📊 Quality Dimensions Analyzed:
+        - **📋 Data Completeness**: Missing values, null percentages, critical field analysis
+        - **⏰ Temporal Consistency**: Future dates, chronological logic, events after death
+        - **🔗 Concept Mapping**: Unmapped concepts, vocabulary coverage, standard concept usage
+        - **🔍 Referential Integrity**: Foreign key violations, orphaned records
+        - **📈 Statistical Analysis**: Outliers, distributions, demographic consistency
+        
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Sample screenshots or demo data could go here
-    st.markdown("### 📸 Dashboard Preview")
+    # Database types section with better styling
+    st.markdown("""
+    <div class="welcome-container">
+        <div class="quality-summary">
+        
+        ### 🔧 Supported Database Systems:
+        
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
+    # Create columns for database types
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+        <div class="db-type-card">
+            <h4>🐘 PostgreSQL</h4>
+            <p>Most common for OMOP implementations. Excellent performance and OMOP community support.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="db-type-card">
+            <h4>🏢 SQL Server</h4>
+            <p>Enterprise healthcare environments. Strong integration with Microsoft ecosystem.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div class="db-type-card">
+            <h4>📁 SQLite</h4>
+            <p>Testing and development scenarios. Perfect for demos and prototyping.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Features section
+    st.markdown("""
+    <div class="welcome-container">
+        <div class="quality-summary">
+        
+        ### 🎯 Key Features:
+        
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Feature highlights
     col1, col2 = st.columns(2)
     
     with col1:
-        st.info("""
-        **Completeness Analysis**
-        - Table-level completeness scoring
-        - Critical field validation
-        - Person demographics analysis
-        - Interactive completeness heatmaps
-        """)
+        st.markdown("""
+        <div class="feature-highlight">
+            <h4>🔄 Real-time Quality Monitoring</h4>
+            <p>Live dashboard updates with configurable refresh intervals and automatic quality score calculations.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-highlight">
+            <h4>📊 Interactive Visualizations</h4>
+            <p>Drill-down capabilities with rich charts, heatmaps, and quality score gauges for deep analysis.</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
-        st.info("""
-        **Temporal Validation**
-        - Future date detection
-        - Birth/death consistency
-        - Event chronology validation
-        - Age-related outlier identification
-        """)
-
-# Footer with version and links
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #666; padding: 1rem;'>
-    🏥 <strong>OMOP Quality Dashboard v1.0.0</strong><br>
-    Built with ❤️ for the healthcare data community<br>
-    <small>Powered by Streamlit • OMOP CDM • Python</small>
-</div>
-""", unsafe_allow_html=True)
+        st.markdown("""
+        <div class="feature-highlight">
+            <h4>🔍 Custom Query Interface</h4>
+            <p>Advanced SQL analysis tools with query templates and result export capabilities.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-highlight">
+            <h4>📈 Export & Reporting</h4>
+            <p>Share findings with your team through CSV, Excel, and PDF reports with automated scheduling.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Call to action
+    st.markdown("""
+    <div class="welcome-container">
+        <div class="quality-summary" style="text-align: center; background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); border: 2px solid #2196f3;">
+        
+        ### 🚀 Ready to start?
+        
+        **Connect your OMOP database using the sidebar to begin your data quality journey!** 👈
+        
+        Need help? Check out our documentation or contact support for assistance.
+        
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
