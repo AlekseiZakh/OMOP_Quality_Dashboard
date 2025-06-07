@@ -252,6 +252,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<div style="background: red; color: white; padding: 10px; margin: 10px 0;">
+    🔧 DEBUG: If you see this red box, CSS is loading correctly
+</div>
+
+<div class="quality-summary">
+    <h2>🔧 DEBUG: Testing quality-summary class</h2>
+    <p>If this text appears with the styled background, your CSS classes are working.</p>
+</div>
+""", unsafe_allow_html=True)
+
 # Database connection functions
 @st.cache_resource
 def create_database_connection(connection_string):
