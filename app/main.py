@@ -724,37 +724,35 @@ else:
     st.markdown("""
     <div class="welcome-container">
         <div class="quality-summary">
-        
-        <h2>Welcome to the OMOP Quality Dashboard! 🎉</h2>
-        
-        <p>This comprehensive dashboard helps you monitor and analyze the quality of your OMOP Common Data Model implementation.</p>
-        
-        <h3>🚀 Getting Started:</h3>
-        <ol>
-            <li><strong>Connect to Database</strong>: Use the sidebar to connect to your OMOP database</li>
-            <li><strong>Overview</strong>: Get a high-level view of your data quality</li>
-            <li><strong>Run Quality Checks</strong>: Analyze completeness, temporal consistency, and more</li>
-            <li><strong>Generate Reports</strong>: Export findings and track improvements over time</li>
-        </ol>
-        
-        <h3>📊 Quality Dimensions Analyzed:</h3>
-        <ul>
-            <li><strong>📋 Data Completeness</strong>: Missing values, null percentages, critical field analysis</li>
-            <li><strong>⏰ Temporal Consistency</strong>: Future dates, chronological logic, events after death</li>
-            <li><strong>🔗 Concept Mapping</strong>: Unmapped concepts, vocabulary coverage, standard concept usage</li>
-            <li><strong>🔍 Referential Integrity</strong>: Foreign key violations, orphaned records</li>
-            <li><strong>📈 Statistical Analysis</strong>: Outliers, distributions, demographic consistency</li>
-        </ul>
-        
+            <h2>Welcome to the OMOP Quality Dashboard! 🎉</h2>
+            
+            <p>This comprehensive dashboard helps you monitor and analyze the quality of your OMOP Common Data Model implementation.</p>
+            
+            <h3>🚀 Getting Started:</h3>
+            <ol>
+                <li><strong>Connect to Database</strong>: Use the sidebar to connect to your OMOP database</li>
+                <li><strong>Overview</strong>: Get a high-level view of your data quality</li>
+                <li><strong>Run Quality Checks</strong>: Analyze completeness, temporal consistency, and more</li>
+                <li><strong>Generate Reports</strong>: Export findings and track improvements over time</li>
+            </ol>
+            
+            <h3>📊 Quality Dimensions Analyzed:</h3>
+            <ul>
+                <li><strong>📋 Data Completeness</strong>: Missing values, null percentages, critical field analysis</li>
+                <li><strong>⏰ Temporal Consistency</strong>: Future dates, chronological logic, events after death</li>
+                <li><strong>🔗 Concept Mapping</strong>: Unmapped concepts, vocabulary coverage, standard concept usage</li>
+                <li><strong>🔍 Referential Integrity</strong>: Foreign key violations, orphaned records</li>
+                <li><strong>📈 Statistical Analysis</strong>: Outliers, distributions, demographic consistency</li>
+            </ul>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Database types section
+    # Database types section with improved structure
     st.markdown("""
     <div class="welcome-container">
         <div class="quality-summary">
-        <h3>🔧 Supported Database Systems:</h3>
+            <h3>🔧 Supported Database Systems:</h3>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -786,11 +784,11 @@ else:
         </div>
         """, unsafe_allow_html=True)
     
-    # Features section
+    # Features section with improved structure
     st.markdown("""
     <div class="welcome-container">
         <div class="quality-summary">
-        <h3>🎯 Key Features:</h3>
+            <h3>🎯 Key Features:</h3>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -828,8 +826,9 @@ else:
         </div>
         """, unsafe_allow_html=True)
     
-    # Alternative approach using native Streamlit components for better formatting
-    st.markdown("---")
+    # Divider with better spacing
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.divider()
     
     # Call to action using native Streamlit
     st.markdown("### 🚀 Ready to Get Started?")
@@ -876,7 +875,7 @@ else:
         4. Use the detailed analysis tools for deep dives
         """)
     
-    # Sample screenshots or demo section (placeholder)
+    # Dashboard preview section
     st.markdown("### 📸 Dashboard Preview")
     
     preview_col1, preview_col2 = st.columns(2)
