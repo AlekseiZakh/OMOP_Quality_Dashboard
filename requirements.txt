@@ -1,12 +1,60 @@
+# Core dependencies
 streamlit>=1.28.0
-sqlalchemy>=2.0.0
 pandas>=2.0.0
-plotly>=5.15.0
+numpy>=1.24.0
+
+# Database connections
+sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.0
 pymssql>=2.2.0
+
+# Visualizations
+plotly>=5.15.0
+
+# Configuration and environment
 python-dotenv>=1.0.0
 pyyaml>=6.0
-numpy>=1.24.0
+
+# Excel support
 openpyxl>=3.1.0
+
+# Templating
 jinja2>=3.1.0
-asyncio>=3.4.3
+
+# Logging and monitoring
+loguru>=0.7.0
+
+# Testing dependencies (optional, for development)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+
+# Code quality (optional, for development)
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0
+
+# Additional utilities
+python-dateutil>=2.8.0
+requests>=2.31.0
+click>=8.1.0
+
+# Optional: For enhanced database support
+# Uncomment if needed:
+# mysql-connector-python>=8.1.0  # For MySQL
+# cx-Oracle>=8.3.0  # For Oracle
+# pymongo>=4.5.0  # For MongoDB (if extending beyond OMOP)
+
+# Optional: For advanced analytics
+# Uncomment if using machine learning features:
+# scikit-learn>=1.3.0
+# scipy>=1.11.0
+
+# Optional: For caching
+# Uncomment if using Redis caching:
+# redis>=4.6.0
+
+# Optional: For email notifications
+# Uncomment if implementing email alerts:
+# smtplib  # Built-in, no install needed
+# email-validator>=2.0.0
