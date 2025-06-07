@@ -287,7 +287,6 @@ def validate_connection_params(db_type, host, port, database, username, password
 
 # Main title with configuration
 dashboard_title = config.get('dashboard.title', 'OMOP Quality Dashboard')
-st.markdown(f'<h1 class="main-header">🏥 {dashboard_title}</h1>', unsafe_allow_html=True)
 
 # Sidebar for database connection
 st.sidebar.header("🔗 Database Connection")
