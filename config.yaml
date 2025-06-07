@@ -1,79 +1,530 @@
+# =============================================================================
+# OMOP Quality Dashboard Configuration
+# =============================================================================
+# This file contains the default configuration for the OMOP Quality Dashboard
+# Environment variables will override these settings when available
+
+# Application metadata
+app:
+  name: "OMOP Quality Dashboard"
+  version: "1.0.0"
+  description: "Comprehensive data quality monitoring for OMOP CDM implementations"
+  author: "Healthcare Data Quality Team"
+
+# =============================================================================
+# DATABASE CONFIGURATION
+# =============================================================================
 database:
   # Default database connection settings
   default_type: "postgresql"
   default_host: "localhost"
   default_port: 5432
   default_database: "omop_cdm"
+  default_schema: "public"
   
   # Connection pool settings
   pool_size: 5
   max_overflow: 10
   pool_recycle: 3600
+  pool_pre_ping: true
+  pool_timeout: 30
   
+  # Query settings
+  query_timeout: 300
+  connection_timeout: 30
+  execution_timeout: 600
+  
+  # SSL/TLS settings
+  ssl:
+    enabled: false
+    mode: "prefer"  # disable, allow, prefer, require, verify-ca, verify-full
+    cert_path: ""
+    key_path: ""
+    ca_path: ""
+  
+  # Supported database types and their default ports
+  supported_types:
+    postgresql: 5432
+    sqlserver: 1433
+    mysql: 3306
+    oracle: 1521
+    sqlite: 0
+    snowflake: 443
+    bigquery: 443
+
+# =============================================================================
+# QUALITY CHECKS CONFIGURATION
+# =============================================================================
 quality_checks:
+  # Global settings
+  enabled: true
+  parallel_execution: false
+  max_workers: 4
+  timeout_per_check: 300
+  
   # Completeness check thresholds
   completeness:
+    enabled: true
     critical_field_threshold: 0  # No null values allowed in critical fields
     table_completeness_warning: 10  # Warn if > 10% null values
     table_completeness_fail: 25     # Fail if > 25% null values
     person_completeness_pass: 90    # Pass if >= 90% person fields complete
     
+    # Critical fields that must not be null
+    critical_fields:
+      person: ["person_id", "gender_concept_id", "year_of_birth"]
+      condition_occurrence: ["person_id", "condition_concept_id", "condition_start_date"]
+      drug_exposure: ["person_id", "drug_concept_id", "drug_exposure_start_date"]
+      procedure_occurrence: ["person_id", "procedure_concept_id", "procedure_date"]
+      measurement: ["person_id", "measurement_concept_id", "measurement_date"]
+      visit_occurrence: ["person_id", "visit_concept_id", "visit_start_date"]
+    
+    # Tables to check for completeness
+    tables_to_check:
+      - "person"
+      - "condition_occurrence"
+      - "drug_exposure"
+      - "procedure_occurrence"
+      - "measurement"
+      - "visit_occurrence"
+      - "observation"
+      - "death"
+  
   # Temporal check settings
   temporal:
+    enabled: true
     max_age: 120  # Maximum reasonable age
     min_birth_year: 1900  # Minimum reasonable birth year
+    max_birth_year: 2025  # Maximum reasonable birth year
     future_date_tolerance: 0  # Days into future allowed
     
+    # Date fields to check across tables
+    date_fields:
+      person: ["birth_datetime"]
+      condition_occurrence: ["condition_start_date", "condition_end_date"]
+      drug_exposure: ["drug_exposure_start_date", "drug_exposure_end_date"]
+      procedure_occurrence: ["procedure_date"]
+      measurement: ["measurement_date"]
+      visit_occurrence: ["visit_start_date", "visit_end_date"]
+      observation: ["observation_date"]
+      death: ["death_date"]
+    
+    # Temporal logic checks
+    chronology_checks:
+      - {source: "condition_start_date", target: "condition_end_date", rule: "start_before_end"}
+      - {source: "drug_exposure_start_date", target: "drug_exposure_end_date", rule: "start_before_end"}
+      - {source: "visit_start_date", target: "visit_end_date", rule: "start_before_end"}
+  
   # Concept mapping thresholds
   concept_mapping:
+    enabled: true
     unmapped_warning: 5   # Warn if > 5% unmapped
     unmapped_fail: 15     # Fail if > 15% unmapped
     standard_concept_threshold: 80  # Expect >= 80% standard concepts
     
+    # Expected vocabularies for each domain
+    expected_vocabularies:
+      Condition: ["SNOMED", "ICD10CM", "ICD9CM"]
+      Drug: ["RxNorm", "NDC"]
+      Procedure: ["SNOMED", "ICD10PCS", "CPT4", "HCPCS"]
+      Measurement: ["LOINC", "SNOMED"]
+      Observation: ["SNOMED", "LOINC"]
+    
+    # Concept tables to validate
+    concept_tables:
+      - "condition_occurrence"
+      - "drug_exposure"
+      - "procedure_occurrence"
+      - "measurement"
+      - "observation"
+  
   # Referential integrity settings
   referential:
+    enabled: true
     orphan_warning: 100   # Warn if > 100 orphaned records
     orphan_fail: 1000     # Fail if > 1000 orphaned records
     
+    # Foreign key relationships to check
+    foreign_keys:
+      condition_occurrence:
+        - {field: "person_id", references: "person.person_id"}
+        - {field: "visit_occurrence_id", references: "visit_occurrence.visit_occurrence_id"}
+        - {field: "condition_concept_id", references: "concept.concept_id"}
+      drug_exposure:
+        - {field: "person_id", references: "person.person_id"}
+        - {field: "visit_occurrence_id", references: "visit_occurrence.visit_occurrence_id"}
+        - {field: "drug_concept_id", references: "concept.concept_id"}
+      procedure_occurrence:
+        - {field: "person_id", references: "person.person_id"}
+        - {field: "visit_occurrence_id", references: "visit_occurrence.visit_occurrence_id"}
+        - {field: "procedure_concept_id", references: "concept.concept_id"}
+      measurement:
+        - {field: "person_id", references: "person.person_id"}
+        - {field: "visit_occurrence_id", references: "visit_occurrence.visit_occurrence_id"}
+        - {field: "measurement_concept_id", references: "concept.concept_id"}
+      visit_occurrence:
+        - {field: "person_id", references: "person.person_id"}
+        - {field: "visit_concept_id", references: "concept.concept_id"}
+      observation:
+        - {field: "person_id", references: "person.person_id"}
+        - {field: "visit_occurrence_id", references: "visit_occurrence.visit_occurrence_id"}
+        - {field: "observation_concept_id", references: "concept.concept_id"}
+  
   # Statistical outlier settings
   statistical:
+    enabled: true
     outlier_warning: 10   # Warn if > 10 outliers
     outlier_fail: 50      # Fail if > 50 outliers
+    
+    # Statistical methods for outlier detection
+    methods:
+      iqr_multiplier: 1.5  # IQR method multiplier
+      z_score_threshold: 3  # Z-score threshold
+      percentile_threshold: 95  # Percentile-based threshold
+    
+    # Fields to check for outliers
+    numeric_fields:
+      person: ["year_of_birth"]
+      drug_exposure: ["quantity", "days_supply"]
+      measurement: ["value_as_number"]
+      procedure_occurrence: ["quantity"]
+    
+    # Age-related checks
+    age_checks:
+      min_reasonable_age: 0
+      max_reasonable_age: 120
+      pediatric_threshold: 18
+      geriatric_threshold: 65
 
+# =============================================================================
+# DASHBOARD CONFIGURATION
+# =============================================================================
 dashboard:
-  # Dashboard display settings
+  # Basic display settings
   title: "OMOP Quality Dashboard"
   subtitle: "Comprehensive Data Quality Monitoring"
+  favicon: "🏥"
+  
+  # Performance settings
   refresh_interval: 300  # Auto-refresh interval in seconds
   max_query_results: 1000  # Maximum rows to display in query results
+  pagination_size: 100  # Rows per page in data tables
+  
+  # UI settings
+  theme: "light"  # light, dark, auto
+  layout: "wide"  # normal, wide
+  sidebar_state: "expanded"  # auto, expanded, collapsed
+  initial_tab: "overview"  # overview, completeness, temporal, etc.
   
   # Chart settings
-  chart_height: 400
-  chart_colors:
-    pass: "#28a745"
-    warning: "#ffc107" 
-    fail: "#dc3545"
-    error: "#6c757d"
+  charts:
+    default_height: 400
+    default_width: 800
+    animation_duration: 500
+    colors:
+      pass: "#28a745"
+      warning: "#ffc107" 
+      fail: "#dc3545"
+      error: "#6c757d"
+      info: "#17a2b8"
+      primary: "#007bff"
+      secondary: "#6c757d"
+    
+    # Chart-specific settings
+    quality_gauge:
+      show_threshold_lines: true
+      threshold_colors:
+        excellent: "#28a745"  # > 95%
+        good: "#20c997"       # 85-95%
+        fair: "#ffc107"       # 70-85%
+        poor: "#dc3545"       # < 70%
+    
+    # Plotly configuration
+    plotly_config:
+      displayModeBar: true
+      displaylogo: false
+      modeBarButtonsToRemove: ["pan2d", "lasso2d"]
+  
+  # Data export settings
+  export:
+    max_rows: 50000
+    formats: ["csv", "excel"]
+    filename_pattern: "omop_quality_{timestamp}"
+    include_metadata: true
+  
+  # Caching settings
+  cache:
+    enabled: true
+    ttl: 300  # Time to live in seconds
+    max_entries: 1000
+    
+  # Pagination and performance
+  performance:
+    lazy_loading: true
+    virtual_scrolling: false
+    debounce_delay: 300
 
+# =============================================================================
+# REPORTING CONFIGURATION
+# =============================================================================
 reporting:
   # Report generation settings
-  export_formats: ["csv", "excel", "pdf"]
-  report_templates:
-    - "executive_summary"
-    - "technical_detail"
-    - "trend_analysis"
+  enabled: true
+  export_formats: ["csv", "excel", "pdf", "json"]
   
-  # Email alert settings (future feature)
+  # Available report templates
+  templates:
+    executive_summary:
+      name: "Executive Summary"
+      description: "High-level quality overview for leadership"
+      sections: ["overview", "key_metrics", "critical_issues", "recommendations"]
+    
+    technical_detail:
+      name: "Technical Detail Report"
+      description: "Comprehensive technical analysis for data teams"
+      sections: ["all_checks", "detailed_results", "sql_queries", "remediation_steps"]
+    
+    trend_analysis:
+      name: "Trend Analysis"
+      description: "Quality trends over time"
+      sections: ["historical_trends", "comparisons", "forecasts"]
+    
+    compliance_report:
+      name: "Compliance Report"
+      description: "Regulatory compliance assessment"
+      sections: ["compliance_checks", "audit_trail", "certification_status"]
+  
+  # Scheduled reporting
+  scheduled_reports:
+    enabled: false
+    schedule: "0 8 * * 1"  # Weekly on Monday at 8 AM
+    recipients: []
+    default_template: "executive_summary"
+  
+  # Email alert settings
   email_alerts:
     enabled: false
     smtp_server: ""
     smtp_port: 587
+    smtp_use_tls: true
+    smtp_username: ""
+    smtp_password: ""
     sender_email: ""
+    sender_name: "OMOP Quality Dashboard"
     recipients: []
+    
+    # Alert conditions
+    conditions:
+      critical_failure: true
+      warning_threshold: false
+      new_issues: true
+      resolved_issues: false
+    
+    # Alert frequency
+    cooldown_minutes: 60
+    daily_summary: true
+    weekly_summary: true
 
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
 logging:
-  level: "INFO"
+  # Basic logging settings
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  file: "omop_dashboard.log"
-  max_file_size: 10485760  # 10MB
-  backup_count: 5
+  
+  # File logging
+  file:
+    enabled: true
+    path: "logs/omop_dashboard.log"
+    max_file_size: 10485760  # 10MB
+    backup_count: 5
+    rotation: "midnight"
+  
+  # Console logging
+  console:
+    enabled: true
+    level: "INFO"
+    format: "%(asctime)s - %(levelname)s - %(message)s"
+  
+  # Structured logging
+  structured:
+    enabled: false
+    format: "json"
+    include_extra_fields: true
+  
+  # Logger-specific levels
+  loggers:
+    "app.database": "INFO"
+    "app.quality_checks": "INFO"
+    "app.dashboard": "WARNING"
+    "sqlalchemy.engine": "WARNING"
+    "streamlit": "ERROR"
+  
+  # Performance logging
+  performance:
+    enabled: false
+    log_slow_queries: true
+    slow_query_threshold: 5.0  # seconds
+    log_memory_usage: false
+
+# =============================================================================
+# SECURITY CONFIGURATION
+# =============================================================================
+security:
+  # Authentication settings (future feature)
+  authentication:
+    enabled: false
+    method: "none"  # none, basic, oauth, ldap
+    session_timeout: 3600
+    require_https: false
+  
+  # API security
+  api:
+    enabled: false
+    rate_limiting: true
+    rate_limit: 100  # requests per hour
+    api_key_required: false
+  
+  # Data protection
+  data_protection:
+    mask_sensitive_data: false
+    audit_trail: true
+    data_retention_days: 2555  # 7 years
+  
+  # CORS settings
+  cors:
+    enabled: false
+    allowed_origins: ["http://localhost:3000"]
+    allow_credentials: false
+
+# =============================================================================
+# INTEGRATION SETTINGS
+# =============================================================================
+integrations:
+  # OHDSI tools
+  ohdsi:
+    atlas:
+      enabled: false
+      url: ""
+      api_key: ""
+    
+    achilles:
+      enabled: false
+      url: ""
+    
+    white_rabbit:
+      enabled: false
+      url: ""
+  
+  # External databases for comparison
+  external_databases:
+    enabled: false
+    databases: []
+  
+  # Webhooks
+  webhooks:
+    enabled: false
+    endpoints: []
+    events: ["quality_check_complete", "alert_triggered"]
+  
+  # Version control
+  version_control:
+    enabled: false
+    provider: "git"  # git, svn
+    repository_url: ""
+    auto_commit_results: false
+
+# =============================================================================
+# CUSTOM RULES AND EXTENSIONS
+# =============================================================================
+custom:
+  # Custom quality rules
+  quality_rules:
+    enabled: false
+    rules_file: "config/custom_rules.yaml"
+    auto_reload: false
+  
+  # Custom dashboards
+  dashboards:
+    enabled: false
+    dashboard_dir: "config/dashboards/"
+  
+  # Plugins
+  plugins:
+    enabled: false
+    plugin_dir: "plugins/"
+    auto_discovery: true
+    allowed_plugins: []
+
+# =============================================================================
+# MONITORING AND OBSERVABILITY
+# =============================================================================
+monitoring:
+  # Health checks
+  health_checks:
+    enabled: true
+    endpoint: "/health"
+    timeout: 30
+    
+  # Metrics collection
+  metrics:
+    enabled: false
+    provider: "prometheus"  # prometheus, statsd
+    endpoint: "/metrics"
+    port: 8502
+    
+  # Performance monitoring
+  performance:
+    enabled: false
+    sample_rate: 0.1
+    trace_database_queries: false
+  
+  # External monitoring
+  external:
+    sentry:
+      enabled: false
+      dsn: ""
+      environment: "development"
+    
+    new_relic:
+      enabled: false
+      license_key: ""
+      app_name: "OMOP Quality Dashboard"
+
+# =============================================================================
+# ENVIRONMENT-SPECIFIC OVERRIDES
+# =============================================================================
+environments:
+  development:
+    logging:
+      level: "DEBUG"
+      console:
+        enabled: true
+    dashboard:
+      refresh_interval: 60
+    database:
+      pool_size: 2
+  
+  staging:
+    logging:
+      level: "INFO"
+    monitoring:
+      health_checks:
+        enabled: true
+  
+  production:
+    logging:
+      level: "WARNING"
+      file:
+        backup_count: 10
+    security:
+      authentication:
+        enabled: true
+        require_https: true
+    monitoring:
+      metrics:
+        enabled: true
+      external:
+        sentry:
+          enabled: true
